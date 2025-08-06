@@ -1,0 +1,10 @@
+name = "SortingNetworkSearch"
+version = "0.1.0"
+defaultTargets = ["sortingnetworksearch"]
+
+[[lean_lib]]
+name = "SortingNetworkSearch"
+
+[[lean_exe]]
+name = "sortingnetworksearch"
+root = "Main"
