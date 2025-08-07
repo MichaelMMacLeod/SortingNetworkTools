@@ -86,6 +86,14 @@ def Network.correctnessScore (n : Network size) : Rat := Id.run do
       successes := successes + 1
   (successes : Rat) / (numTests : Rat)
 
+def Network.isCorrect (n : Network size) : Bool := Id.run do
+  let numTests := 2 ^ size
+  for i in [0 : numTests] do
+    let arr := i.toBitArray.pad false size
+    if !n.correctlySortsArray arr fun a b => a = b ∨ ((¬a) ∧ b) then
+      return false
+  return true
+
 def Network.swapsScore (n : Network size) : Rat :=
   if size ≤ 1 then
     if n.toSwaps.size = 0 then 0 else 1
@@ -204,17 +212,27 @@ def Network.improve [RandomGen Gen] (n : Network size) (g : Gen) (fuel : Nat) (m
     let ns := if trustCorrect then 1 else n.correctnessScore
     let (n, g, trustCorrect) := if (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
                       ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore) then
-        let nps := n'.correctnessScore
-        if nps = 1 then
-          (n', g, true)
+        if ns = 1 then
+          let n'correct := n'.isCorrect
+          if n'correct then
+            (n', g, true)
+          else
+            (n, g, trustCorrect)
         else
-          (n, g, trustCorrect)
+          let nps := n'.correctnessScore
+          if nps = 1 then
+            (n', g, true)
+          else
+            (n, g, trustCorrect)
       else
-        let nps := n'.correctnessScore
-        if ns < nps then
-          (n', g, nps = 1)
+        if ns = 1 then
+          (n, g, true)
         else
-          (n, g, trustCorrect)
+          let nps := n'.correctnessScore
+          if ns < nps then
+            (n', g, nps = 1)
+          else
+            (n, g, trustCorrect)
     n.improve g (fuel - 1)
 
 -- Output representation consumable by Brian Pursley's "sorting-network" visualization code:
