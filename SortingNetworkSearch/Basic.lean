@@ -27,6 +27,32 @@ instance : Inhabited (Network size) where
 
 abbrev Swaps := Array (Nat × Nat)
 
+def Layer.toSwaps (layer : Array Nat) : Array (Nat × Nat) :=
+  Prod.fst <| layer.foldl
+    (init := (
+      Array.emptyWithCapacity (layer.size / 2),
+      Array.replicate layer.size true,
+      0
+    ))
+    fun (acc, notSeen, a) b =>
+      if a = b then
+        (acc, notSeen, a + 1)
+      else
+        if notSeen[a]! then
+          let acc := acc.push (a, b)
+          let notSeen := notSeen.set! b false
+          (acc, notSeen, a + 1)
+        else
+          (acc, notSeen, a + 1)
+
+def Swaps.toLayer (size : Nat) (swaps : Array (Nat × Nat)) : Array Nat :=
+  swaps.foldl
+    (init := Array.range size)
+    fun acc (a, b) =>
+      let acc := acc.set! a b
+      let acc := acc.set! b a
+      acc
+
 def Network.toSwaps (n : Network size) : Swaps :=
   n.toArray.flatMap fun l =>
     let swaps : Std.HashSet (Nat × Nat) := Prod.fst <| l.foldl
@@ -301,25 +327,72 @@ def Network.swapRandomLayers [RandomGen Gen] (n : Network size) (g : Gen) : Netw
     let n := Network.mk <| n.toArray.swapIfInBounds layerA layerB
     (n, g)
 
+def Network.removeSmallestLayer [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
+  if n.toArray.size < 1 then
+    (n, g)
+  else
+    let (_, smallestLayer) := n.toArray.zipIdx.toList.mergeSort (fun (a, _) (b, _) => a.size ≤ b.size) |>.head!
+    let n := Network.mk <| n.toArray.eraseIdx! smallestLayer
+    (n, g)
+
+def Network.removeRandomLayer [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
+  if n.toArray.size < 1 then
+    (n, g)
+  else
+    let (layer, g) := randNat g 0 (n.toArray.size - 1)
+    let n := Network.mk <| n.toArray.eraseIdx! layer
+    (n, g)
+
+def Layer.rotate (arr : Array Nat) (amount : Nat) : Array Nat :=
+  if arr.size = 0 then
+    arr
+  else
+    let adjust : Nat → Nat :=
+      fun n => (n + amount) % arr.size
+    arr
+      |> Layer.toSwaps
+      |>.map (fun (a, b) => (adjust a, adjust b))
+      |> Swaps.toLayer arr.size
+
+def Network.rotateRandomLayer [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
+  if n.toArray.size < 1 then
+    (n, g)
+  else
+    let (layerIdx, g) := randNat g 0 (n.toArray.size - 1)
+    let (n, layer) := n.toArray.swapRemove! layerIdx #[]
+    let (amount, g) := randNat g 1 (layer.size - 1)
+    let layer := Layer.rotate layer amount
+    let n := Network.mk <| n.set! layerIdx layer
+    (n, g)
+
 inductive Mutation where
   | swapCE
   | swapLayers
+  | removeSmallestLayer
+  | removeRandomLayer
+  | rotateRandomLayer
   deriving BEq, Hashable, Repr
 
 instance : Inhabited Mutation where
   default := .swapCE
 
 def Mutation.chances : Std.HashMap Mutation Nat := .ofList [
-  (swapCE, 100),
-  (swapLayers, 1)
+  (swapCE, 1250),
+  (swapLayers, 250),
+  (removeSmallestLayer, 0),
+  (removeRandomLayer, 1),
+  (rotateRandomLayer, 100),
 ]
 
 def Mutation.chancesSum : Nat := Mutation.chances.valuesArray.sum
 
 def Mutation.chancesNormalized : Std.HashMap Mutation Float :=
-  Mutation.chances.map
+  Mutation.chances.filterMap
     fun _ v =>
-      v.toFloat / Mutation.chancesSum.toFloat
+      if v = 0 then
+        none
+      else
+        some <| v.toFloat / Mutation.chancesSum.toFloat
 
 def Mutation.bounds : Array (Float × Mutation) :=
   let result := Prod.fst <| Mutation.chancesNormalized.fold
@@ -334,12 +407,14 @@ def Mutation.bounds : Array (Float × Mutation) :=
       (acc, upperBound, numSeen + 1)
   result.mergeSort (le := fun (a, _) (b, _) => a ≤ b) |>.toArray
 
+#eval Mutation.bounds
+
 def Mutation.pickAtRandom [RandomGen Gen] (g : Gen) : Mutation × Gen :=
   let (k, g) := randNat g 0 USize.size
   let k := k.toFloat / USize.size.toFloat
   let m := Id.run do
     for (upperBound, m) in Mutation.bounds do
-      if k < upperBound then
+      if k ≤ upperBound then
         return m
     panic! "no mutation found"
   (m, g)
@@ -351,8 +426,11 @@ def Network.mutate [RandomGen Gen] (n : Network size) (g : Gen) (numMutations : 
     let (m, g) := Mutation.pickAtRandom g
     let (n, g) :=
       match m with
-      | Mutation.swapCE => n.addRandomSwap g
-      | Mutation.swapLayers => n.swapRandomLayers g
+      | .swapCE => n.addRandomSwap g
+      | .swapLayers => n.swapRandomLayers g
+      | .removeSmallestLayer => n.removeSmallestLayer g
+      | .removeRandomLayer => n.removeRandomLayer g
+      | .rotateRandomLayer => n.rotateRandomLayer g
     n.mutate g (numMutations - 1)
 
 def Network.satisfiesReachabilityCondition (nw : Network size) : Bool := Id.run do
@@ -597,10 +675,12 @@ def countValidLayers (size : Nat) : Nat :=
 def countValidLayersViaPermutationFiltering (size : Nat) : Nat :=
   (Array.range size).permutations.filter (·.isValidLayer) |>.size
 
--- #eval Array.range 16
---   |>.map (·.toUInt64)
---   |>.map fun i => (
---     i.toBitString,
---     goodNetworks[0].snd.run i |>.toBitString,
---     goodNetworks[0].snd.correctlySortsInput i
---   )
+#eval (Array.range 5)
+  |>.permutations
+  |>.filter (·.isValidLayer)
+
+#eval (Array.range 5)
+  |>.permutations
+  |>.filter (·.isValidLayer)
+  |>.map (fun (l : Array Nat) => (l, Layer.rotate l 1, (Layer.rotate l 1).isValidLayer))
+  |>.filter (·.snd.snd)
