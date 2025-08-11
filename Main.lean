@@ -18,7 +18,7 @@ def main (args : List String) : IO Unit := do
       bestCEs := n.swapsScore
       bestLayers := n.layersScore
       println! s!"{n.toPursleyString}"
-      println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i}"
+      -- println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i}"
     else if isCorrect then
       let swaps := n.swapsScore
       let layers := n.layersScore
@@ -26,4 +26,4 @@ def main (args : List String) : IO Unit := do
         bestCEs := swaps
         bestLayers := layers
         println! s!"{n.toPursleyString}"
-        println! s!"Found a size {size} network with {swaps} CEs and {layers} layers after iteration {i}"
+        -- println! s!"Found a size {size} network with {swaps} CEs and {layers} layers after iteration {i}"

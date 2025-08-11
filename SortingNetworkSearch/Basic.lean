@@ -292,13 +292,68 @@ def Network.addRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) : Network
     let n := n.removeDuplicateAdjacentLayers
     (n, g)
 
-def Network.addRandomSwaps [RandomGen Gen] (n : Network size) (g : Gen) (numSwaps : Nat) : Network size × Gen :=
-  if numSwaps = 0 then
+def Network.swapRandomLayers [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
+  if n.toArray.size < 2 then
     (n, g)
   else
-    let (n, g) := n.addRandomSwap g
-    n.addRandomSwaps g (numSwaps - 1)
+    let (layerA, g) := randNat g 0 n.toArray.size
+    let (layerB, g) := randNat g 0 n.toArray.size
+    let n := Network.mk <| n.toArray.swapIfInBounds layerA layerB
+    (n, g)
 
+inductive Mutation where
+  | swapCE
+  | swapLayers
+  deriving BEq, Hashable, Repr
+
+instance : Inhabited Mutation where
+  default := .swapCE
+
+def Mutation.chances : Std.HashMap Mutation Nat := .ofList [
+  (swapCE, 100),
+  (swapLayers, 1)
+]
+
+def Mutation.chancesSum : Nat := Mutation.chances.valuesArray.sum
+
+def Mutation.chancesNormalized : Std.HashMap Mutation Float :=
+  Mutation.chances.map
+    fun _ v =>
+      v.toFloat / Mutation.chancesSum.toFloat
+
+def Mutation.bounds : Array (Float × Mutation) :=
+  let result := Prod.fst <| Mutation.chancesNormalized.fold
+    (init := ([], (0 : Float), 0))
+    fun (acc, lowerBound, numSeen) k v =>
+      let upperBound : Float :=
+        if numSeen + 1 = Mutation.chancesNormalized.size then
+          1
+        else
+          lowerBound + v
+      let acc := acc.cons (upperBound, k)
+      (acc, upperBound, numSeen + 1)
+  result.mergeSort (le := fun (a, _) (b, _) => a ≤ b) |>.toArray
+
+def Mutation.pickAtRandom [RandomGen Gen] (g : Gen) : Mutation × Gen :=
+  let (k, g) := randNat g 0 USize.size
+  let k := k.toFloat / USize.size.toFloat
+  let m := Id.run do
+    for (upperBound, m) in Mutation.bounds do
+      if k < upperBound then
+        return m
+    panic! "no mutation found"
+  (m, g)
+
+def Network.mutate [RandomGen Gen] (n : Network size) (g : Gen) (numMutations : Nat) : Network size × Gen :=
+  if numMutations = 0 then
+    (n, g)
+  else
+    let (m, g) := Mutation.pickAtRandom g
+    let (n, g) :=
+      match m with
+      | Mutation.swapCE => n.addRandomSwap g
+      | Mutation.swapLayers => n.swapRandomLayers g
+    n.mutate g (numMutations - 1)
 
 def Network.satisfiesReachabilityCondition (nw : Network size) : Bool := Id.run do
   let output : Array (Std.HashSet Nat) :=
@@ -324,14 +379,14 @@ def Network.improve
     (g : Gen)
     (fuel : Nat)
     (lastFailures : Option Nat)
-    (maxSwaps : Nat := (size * (size - 1) / 2))
+    (numMutations : Nat := (size * (size - 1) / 2))
     : Network size × Gen × Option Nat :=
   if fuel = 0 ∨ size = 0 then
     (n, g, lastFailures)
   else
     let nIsCorrect := lastFailures.getD 1 = 0
-    let (numSwaps, g) := randNat g 1 maxSwaps
-    let (n', g) := n.addRandomSwaps g numSwaps
+    let (numMutations, g) := randNat g 1 numMutations
+    let (n', g) := n.mutate g numMutations
     let n'IsSmaller :=
       (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
       ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore)
@@ -349,7 +404,7 @@ def Network.improve
         else
           let (_successes, failures) := n'.correctnessScore'
           (n', g, failures)
-    n.improve g (fuel - 1) lastFailures maxSwaps
+    n.improve g (fuel - 1) lastFailures numMutations
 
 -- Output representation consumable by Brian Pursley's "sorting-network" visualization code:
 -- https://github.com/brianpursley/sorting-network
