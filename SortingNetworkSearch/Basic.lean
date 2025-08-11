@@ -87,6 +87,8 @@ def Network.fromLayerSwaps (layers : Array (Array (UInt8 × UInt8))) : Network s
           let acc := acc.set! b.toNat a
           acc
 
+#check (· >>> · : UInt64 → UInt8 → UInt64)
+
 @[inline]
 def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
   let aBitPos := a.toUInt64
@@ -110,15 +112,23 @@ structure CompiledNetwork where
   size_lt_USize_size : as.size < USize.size
 
 attribute [grind →] ByteArray.size
+attribute [grind =] ByteArray.empty ByteArray.emptyWithCapacity
+attribute [grind] USize.size_pos
+
+theorem ByteArray.size_empty : empty.size = 0 := by
+  grind
+
+theorem ByteArray.size_empty_lt_Usize_size : empty.size < USize.size := by
+  simp [ByteArray.size_empty, USize.size_pos]
+
+grind_pattern ByteArray.size_empty_lt_Usize_size => ByteArray.empty.size, USize.size
 
 def Network.compile (n : Network size) : CompiledNetwork :=
   let swaps := n.toSwaps |>.unzip
   if h : swaps.fst.size = swaps.snd.size ∧ swaps.fst.size < USize.size then by
     refine CompiledNetwork.mk (.mk swaps.fst) (.mk swaps.snd) (by grind) (by grind)
   else by
-    refine CompiledNetwork.mk .empty .empty (by grind) ?_
-    unfold ByteArray.size
-    exact USize.size_pos
+    refine CompiledNetwork.mk .empty .empty (by grind) (by grind)
 
 @[inline]
 def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 := Id.run do
