@@ -54,15 +54,7 @@ def Swaps.toLayer (size : Nat) (swaps : Array (Nat × Nat)) : Array Nat :=
       acc
 
 def Network.toSwaps (n : Network size) : Swaps :=
-  n.toArray.flatMap fun l =>
-    let swaps : Std.HashSet (Nat × Nat) := Prod.fst <| l.foldl
-      (init := (default, 0))
-      fun (acc, a) b =>
-        let min := a.min b
-        let max := a.max b
-        let acc := acc.insert (min, max)
-        (acc, a + 1)
-    swaps.filter (fun (a, b) => a ≠ b) |>.toArray
+  n.toArray.flatMap (Layer.toSwaps ·)
 
 def Network.fromLayerSwaps (layers : Array Swaps) : Network size :=
   Network.mk <|
@@ -73,17 +65,9 @@ def Network.fromLayerSwaps (layers : Array Swaps) : Network size :=
           let acc := acc.set! b a
           acc
 
-
--- def Swaps.run [Inhabited α] (swaps : Swaps) (arr : Array α)
---     (le : α → α → Bool := by exact fun a b => a ≤ b) : Array α :=
---   swaps.foldl
---     (init := arr)
---     fun arr (a, b) =>
---       if !(le arr[a]! arr[b]!) then arr.swapIfInBounds a b else arr
-
 def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
-  let aBitPos := a.toUInt64 --size - a - 1 |>.toUInt64
-  let bBitPos := b.toUInt64 --size - b - 1 |>.toUInt64
+  let aBitPos := a.toUInt64
+  let bBitPos := b.toUInt64
   let aBit := val >>> aBitPos &&& 1
   let bBit := val >>> bBitPos &&& 1
   let aBit' := bBit &&& aBit
@@ -109,56 +93,6 @@ def UInt64.bitsSorted (n : UInt64) : Bool :=
   let n := n ^^^ (n >>> 1)
   n &&& (n - 1) = 0
 
-@[specialize]
-def Network.run'
-    [Inhabited α]
-    (n : Network size)
-    (arr : Array α)
-    (le : α → α → Bool := by exact fun a b => a ≤ b)
-    : Array α :=
-  n.toArray.foldl runLayer arr
-where
-  @[specialize, inline]
-  runLayer (arr : Array α) (layer : Array Nat) : Array α :=
-    let (arr, _) := layer.foldl
-      (init := (arr, 0))
-      fun (arr, i) ce =>
-        let arr := if i ≠ ce ∧ !(le arr[ce]! arr[i]!) then arr.swapIfInBounds i ce else arr
-        (arr, i + 1)
-    arr
-
-@[specialize]
-def Array.sorted [Inhabited α] (arr : Array α)
-    (le : α → α → Bool := by exact fun a b => a ≤ b) : Bool :=
-  if arr.size <= 1 then
-    true
-  else Id.run do
-    for i in [1 : arr.size] do
-      if !(le arr[i - 1]! arr[i]!) then
-        return false
-    true
-
-def Array.pad (arr : Array α) (a : α) (newSize : Nat) :=
-  arr.append (.replicate (newSize - arr.size) a)
-
-def Array.shuffle [Inhabited α] [RandomGen Gen] (arr : Array α) (gen : Gen): Array α :=
-  Prod.fst <| arr.size.fold
-    (init := (arr, gen))
-    fun i _ (arr, gen) =>
-      if i = 0 then
-        (arr, gen)
-      else
-        let (j, gen) := randNat gen 0 (i - 1)
-        let a := arr[i]!
-        let b := arr[j]!
-        let arr := arr.set! i b
-        let arr := arr.set! j a
-        (arr, gen)
-
-def mkInput (size : Nat) : Array (Array Bool) :=
-  (Array.shuffle · mkStdGen) <| .ofFn (n := 2 ^ size) fun i =>
-    i.toNat.toBitArray.pad false size
-
 def Network.correctlySortsInput (n : Network size) (input : UInt64) : Bool :=
   n.run input |>.bitsSorted
 
@@ -170,15 +104,7 @@ def Network.output (n : Network size) : Std.HashSet UInt64 := Id.run do
     result := result.insert output
   result
 
--- def Network.correctnessScore (n : Network size) : Rat := Id.run do
---   let mut successes := 0
---   let numTests := 2 ^ size
---   for i in [0 : numTests] do
---     if n.correctlySortsInput i.toUInt64 then
---       successes := successes + 1
---   (successes : Rat) / (numTests : Rat)
-
-def Network.correctnessScore' (n : Network size) : Nat × Nat := Id.run do
+def Network.correctnessScore (n : Network size) : Nat × Nat := Id.run do
   let mut successes := 0
   let mut failures := 0
   let mut start : Nat := 1
@@ -191,34 +117,15 @@ def Network.correctnessScore' (n : Network size) : Nat × Nat := Id.run do
     i := LFSR.randNat size i
     if i = 1 then
       break
-  pure (successes, failures)
-  -- ((dbgTraceVal successes) : Rat) / ((2 ^ size - 1 : Nat) : Rat)
+  (successes, failures)
 
--- def Network.isCorrect (n : Network size) : Bool := Id.run do
---   let numTests := 2 ^ size
---   for i in [0 : numTests] do
---     if !n.correctlySortsInput i.toUInt64 then
---       return false
---   true
-
-def Network.isCorrect' (n : Network size) : Bool := Id.run do
-  let mut start : Nat := 1
-  let mut i := start
-  while true do
-    if !n.correctlySortsInput i.toUInt64 then
-      return false
-    i := LFSR.randNat size i
-    if i = 1 then
-      break
-  true
-
-def Network.swapsScore (n : Network size) : Rat :=
+def Network.swapsScore (n : Network size) : Nat :=
   if size ≤ 1 then
     if n.toSwaps.size = 0 then 0 else 1
   else
     n.toSwaps.size
 
-def Network.layersScore (n : Network size) : Rat :=
+def Network.layersScore (n : Network size) : Nat :=
   if size ≤ 1 then
     if n.toArray.size = 0 then 0 else 1
   else
@@ -232,32 +139,44 @@ def Array.swapRemove! [Inhabited α] (arr : Array α) (i : Nat) (a : α) : Array
   let arr := arr.set! i a
   (arr, result)
 
-def Network.addSwap (n : Network size) (layer : Nat) (swap : Nat × Nat) : Network size × Nat :=
-  let (n, layer) :=
-    if layer ≥ n.toArray.size then
-      let n := n.addLayer
-      (n, n.toArray.size - 1)
-    else
-      (n, layer)
-  let a := n.toArray[layer]![swap.fst]!
-  let b := n.toArray[layer]![swap.snd]!
-  if (a = swap.fst ∧ b = swap.snd) ∨ (a = swap.snd ∧ b = swap.fst) then
-    let (n, l) := n.toArray.swapRemove! layer #[]
-    let l := l.swapIfInBounds swap.fst swap.snd
-    (Network.mk <| n.set! layer l, layer)
-  else
-    let newlayer := Array.range size
-    let newLayer := newlayer.swapIfInBounds swap.fst swap.snd
-    (Network.mk <| n.toArray.insertIdx! (layer + 1) newLayer, layer + 1)
+def Network.addSwap
+    (n : Network size)
+    (layerIdx : Nat)
+    (swap : Nat × Nat)
+    (symmetric : Bool)
+    : Network size :=
+  let n := if layerIdx = n.toArray.size then n.addLayer else n
+  let a := n.toArray[layerIdx]![swap.fst]!
+  let b := n.toArray[layerIdx]![swap.snd]!
+  if a = swap.fst ∧ b = swap.snd then
+    let (n, layer) := n.toArray.swapRemove! layerIdx #[]
+    let layer := layer.swapIfInBounds swap.fst swap.snd
+    let n := Network.mk <| n.set! layerIdx layer
+    if symmetric then
+      n.addSwap layerIdx (size - 1 - swap.fst, size - 1 - swap.snd) false
+    else n
+  else n
+termination_by symmetric.toNat
 
-def Network.removeSwap (n : Network size) (layer : Nat) (a : Nat) : Network size :=
-  let b := n.toArray[layer]![a]!
-  if a ≠ b then
-    let (n, l) := n.toArray.swapRemove! layer #[]
-    let l := l.swapIfInBounds a b
-    Network.mk <| n.set! layer l
-  else
-    n
+def Network.removeSwap
+    (n : Network size)
+    (layerIdx : Nat)
+    (swapIdx : Nat)
+    (symmetric : Bool)
+    : Network size :=
+  let swaps := Layer.toSwaps n.toArray[layerIdx]!
+  if 0 < swaps.size then
+    let (a, b) := swaps[swapIdx % swaps.size]!
+    let (n, layer) := n.toArray.swapRemove! layerIdx #[]
+    let layer := layer.swapIfInBounds a b
+    let n := Network.mk <| n.set! layerIdx layer
+    if symmetric then
+      let (n, layer) := n.toArray.swapRemove! layerIdx #[]
+      let layer := layer.swapIfInBounds (size - 1 - a) (size - 1 - b)
+      let n := Network.mk <| n.set! layerIdx layer
+      n
+    else n
+  else n
 
 def isUselessLayer (layer : Array Nat) : Bool := Id.run do
   for i in [0 : layer.size], v in layer do
@@ -284,6 +203,24 @@ def Network.removeDuplicateAdjacentLayers (n : Network size) : Network size := I
     i := i - 1
   Network.mk n
 
+partial def Network.removeRedundancy (n : Network size) : Network size :=
+  let n' : Network size := Id.run do
+    if n.toArray.size < 1 then
+      return n
+    let mut n := Network.mk n.toArray
+    let mut i := n.toArray.size - 1
+    while true do
+      n := n.removeLayerIfUseless i
+      if i = 0 then
+        break
+      i := (i - 1).min (n.toArray.size - 1)
+    n
+  let n' := n'.removeDuplicateAdjacentLayers
+  if n' ≠ n then
+    n'.removeRedundancy
+  else
+    n'
+
 def Network.countExchangeEndpoints (n : Network size) : Array Nat :=
   n.toArray.foldl
     (init := Array.replicate size 0)
@@ -298,7 +235,7 @@ def Network.countExchangeEndpoints (n : Network size) : Array Nat :=
             else
               (acc, a + 1)
 
-def Network.addRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
+def Network.addRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) (symmetric : Bool) : Network size × Gen :=
   if size = 0 then
     (n, g)
   else
@@ -313,9 +250,18 @@ def Network.addRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) : Network
           (fst - 1, fst)
       else
         (fst, snd)
-    let (n, layer) := n.addSwap layer (fst, snd)
-    let n := n.removeLayerIfUseless layer
-    let n := n.removeDuplicateAdjacentLayers
+    let n := n.addSwap layer (fst, snd) symmetric
+    let n := n.removeRedundancy
+    (n, g)
+
+def Network.removeRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) (symmetric : Bool) : Network size × Gen :=
+  if size = 0 ∨ n.toArray.size = 0 then
+    (n, g)
+  else
+    let (layer, g) := randNat g 0 (n.toArray.size - 1)
+    let (fst, g) := randNat g 0 (size / 2)
+    let n := n.removeSwap layer fst symmetric
+    let n := n.removeRedundancy
     (n, g)
 
 def Network.swapRandomLayers [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
@@ -366,22 +312,24 @@ def Network.rotateRandomLayer [RandomGen Gen] (n : Network size) (g : Gen) : Net
     (n, g)
 
 inductive Mutation where
-  | swapCE
   | swapLayers
   | removeSmallestLayer
   | removeRandomLayer
   | rotateRandomLayer
+  | addRandomSwap
+  | removeRandomSwap
   deriving BEq, Hashable, Repr
 
 instance : Inhabited Mutation where
-  default := .swapCE
+  default := .addRandomSwap
 
 def Mutation.chances : Std.HashMap Mutation Nat := .ofList [
-  (swapCE, 1250),
-  (swapLayers, 250),
+  (swapLayers, 200),
   (removeSmallestLayer, 0),
-  (removeRandomLayer, 1),
-  (rotateRandomLayer, 100),
+  (removeRandomLayer, 5),
+  (rotateRandomLayer, 0),
+  (addRandomSwap, 1000),
+  (removeRandomSwap, 600),
 ]
 
 def Mutation.chancesSum : Nat := Mutation.chances.valuesArray.sum
@@ -407,8 +355,6 @@ def Mutation.bounds : Array (Float × Mutation) :=
       (acc, upperBound, numSeen + 1)
   result.mergeSort (le := fun (a, _) (b, _) => a ≤ b) |>.toArray
 
-#eval Mutation.bounds
-
 def Mutation.pickAtRandom [RandomGen Gen] (g : Gen) : Mutation × Gen :=
   let (k, g) := randNat g 0 USize.size
   let k := k.toFloat / USize.size.toFloat
@@ -419,19 +365,20 @@ def Mutation.pickAtRandom [RandomGen Gen] (g : Gen) : Mutation × Gen :=
     panic! "no mutation found"
   (m, g)
 
-def Network.mutate [RandomGen Gen] (n : Network size) (g : Gen) (numMutations : Nat) : Network size × Gen :=
+def Network.mutate [RandomGen Gen] (n : Network size) (g : Gen) (numMutations : Nat) (symmetric : Bool) : Network size × Gen :=
   if numMutations = 0 then
     (n, g)
   else
     let (m, g) := Mutation.pickAtRandom g
     let (n, g) :=
       match m with
-      | .swapCE => n.addRandomSwap g
       | .swapLayers => n.swapRandomLayers g
       | .removeSmallestLayer => n.removeSmallestLayer g
       | .removeRandomLayer => n.removeRandomLayer g
       | .rotateRandomLayer => n.rotateRandomLayer g
-    n.mutate g (numMutations - 1)
+      | .addRandomSwap => n.addRandomSwap g symmetric
+      | .removeRandomSwap => n.removeRandomSwap g symmetric
+    n.mutate g (numMutations - 1) symmetric
 
 def Network.satisfiesReachabilityCondition (nw : Network size) : Bool := Id.run do
   let output : Array (Std.HashSet Nat) :=
@@ -457,6 +404,7 @@ def Network.improve
     (g : Gen)
     (fuel : Nat)
     (lastFailures : Option Nat)
+    (symmetric : Bool)
     (numMutations : Nat := (size * (size - 1) / 2))
     : Network size × Gen × Option Nat :=
   if fuel = 0 ∨ size = 0 then
@@ -464,13 +412,13 @@ def Network.improve
   else
     let nIsCorrect := lastFailures.getD 1 = 0
     let (numMutations, g) := randNat g 1 numMutations
-    let (n', g) := n.mutate g numMutations
+    let (n', g) := n.mutate g numMutations symmetric
     let n'IsSmaller :=
       (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
       ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore)
     let (n, g, lastFailures) :=
       if n'IsSmaller then
-        let (_successes, failures) := n'.correctnessScore'
+        let (_successes, failures) := n'.correctnessScore
         let n'IsCorrect := failures = 0
         if n'IsCorrect then
           (n', g, failures)
@@ -480,9 +428,9 @@ def Network.improve
         if nIsCorrect then
           (n, g, lastFailures)
         else
-          let (_successes, failures) := n'.correctnessScore'
+          let (_successes, failures) := n'.correctnessScore
           (n', g, failures)
-    n.improve g (fuel - 1) lastFailures numMutations
+    n.improve g (fuel - 1) lastFailures symmetric numMutations
 
 -- Output representation consumable by Brian Pursley's "sorting-network" visualization code:
 -- https://github.com/brianpursley/sorting-network
@@ -675,12 +623,12 @@ def countValidLayers (size : Nat) : Nat :=
 def countValidLayersViaPermutationFiltering (size : Nat) : Nat :=
   (Array.range size).permutations.filter (·.isValidLayer) |>.size
 
-#eval (Array.range 5)
-  |>.permutations
-  |>.filter (·.isValidLayer)
+-- #eval (Array.range 5)
+--   |>.permutations
+--   |>.filter (·.isValidLayer)
 
-#eval (Array.range 5)
-  |>.permutations
-  |>.filter (·.isValidLayer)
-  |>.map (fun (l : Array Nat) => (l, Layer.rotate l 1, (Layer.rotate l 1).isValidLayer))
-  |>.filter (·.snd.snd)
+-- #eval (Array.range 5)
+--   |>.permutations
+--   |>.filter (·.isValidLayer)
+--   |>.map (fun (l : Array Nat) => (l, Layer.rotate l 1, (Layer.rotate l 1).isValidLayer))
+--   |>.filter (·.snd.snd)
