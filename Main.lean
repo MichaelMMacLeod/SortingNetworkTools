@@ -1,4 +1,5 @@
 import SortingNetworkSearch
+import SortingNetworkSearch.LFSR
 
 def main (args : List String) : IO Unit := do
   let size := args[0]!.toNat!
@@ -8,14 +9,16 @@ def main (args : List String) : IO Unit := do
   let mut isCorrect := false
   let mut bestCEs := 0
   let mut bestLayers := 0
+  let input := mkInput size
   while true do
-    (n, g) := n.improve g 50
+    (n, g) := n.improve input g 50
     i := i + 1
-    if !isCorrect ∧ n.correctnessScore = 1 then
+    if !isCorrect ∧ n.correctnessScore' input = 1 then
       isCorrect := true
       bestCEs := n.swapsScore
       bestLayers := n.layersScore
       println! s!"{n.toPursleyString}"
+        println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i}"
     else if isCorrect then
       let swaps := n.swapsScore
       let layers := n.layersScore
@@ -23,6 +26,4 @@ def main (args : List String) : IO Unit := do
         bestCEs := swaps
         bestLayers := layers
         println! s!"{n.toPursleyString}"
-
-
-    -- println! s!"Found a size {size} network with {swaps} CEs and {layers} layers after iteration {i}"
+        println! s!"Found a size {size} network with {swaps} CEs and {layers} layers after iteration {i}"

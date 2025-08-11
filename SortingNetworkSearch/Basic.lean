@@ -1,9 +1,11 @@
 import Std.Data.HashSet
 import Batteries.Data.Rat
+import Mathlib.Data.List.Defs
+import SortingNetworkSearch.LFSR
 
 structure Network (size : Nat) where
   toArray : Array (Array Nat)
-  deriving Repr
+  deriving Repr, DecidableEq, Hashable
 
 def Network.instInhabited : Network size :=
   {
@@ -25,6 +27,16 @@ def Network.toSwaps (n : Network size) : Swaps :=
         let acc := acc.insert (min, max)
         (acc, a + 1)
     swaps.filter (fun (a, b) => a ≠ b) |>.toArray
+
+def Network.fromLayerSwaps (layers : Array Swaps) : Network size :=
+  Network.mk <|
+    layers.map fun swaps =>
+      swaps.foldl (init := .range size)
+        fun acc (a, b) =>
+          let acc := acc.set! a b
+          let acc := acc.set! b a
+          acc
+
 
 -- def Swaps.run [Inhabited α] (swaps : Swaps) (arr : Array α)
 --     (le : α → α → Bool := by exact fun a b => a ≤ b) : Array α :=
@@ -68,14 +80,40 @@ def Array.sorted [Inhabited α] (arr : Array α)
         return false
     true
 
-@[specialize]
 def Array.pad (arr : Array α) (a : α) (newSize : Nat) :=
   arr.append (.replicate (newSize - arr.size) a)
+
+def Array.shuffle [Inhabited α] [RandomGen Gen] (arr : Array α) (gen : Gen): Array α :=
+  Prod.fst <| arr.size.fold
+    (init := (arr, gen))
+    fun i _ (arr, gen) =>
+      if i = 0 then
+        (arr, gen)
+      else
+        let (j, gen) := randNat gen 0 (i - 1)
+        let a := arr[i]!
+        let b := arr[j]!
+        let arr := arr.set! i b
+        let arr := arr.set! j a
+        (arr, gen)
+
+def mkInput (size : Nat) : Array (Array Bool) :=
+  (Array.shuffle · mkStdGen) <| .ofFn (n := 2 ^ size) fun i =>
+    i.toNat.toBitArray.pad false size
 
 @[specialize]
 def Network.correctlySortsArray [Inhabited α] (n : Network size) (arr : Array α)
     (le : α → α → Bool := by exact fun a b => a ≤ b) : Bool :=
   n.run arr le |>.sorted le
+
+def Network.output (n : Network size) : Std.HashSet (Array Bool) := Id.run do
+  let mut result := default
+  let numInputs := 2 ^ size
+  for i in [0:numInputs] do
+    let input := i.toBitArray.pad false size
+    let output := n.run input
+    result := result.insert output
+  result
 
 def Network.correctnessScore (n : Network size) : Rat := Id.run do
   let mut successes := 0
@@ -86,19 +124,31 @@ def Network.correctnessScore (n : Network size) : Rat := Id.run do
       successes := successes + 1
   (successes : Rat) / (numTests : Rat)
 
+def Network.correctnessScore' (n : Network size) (input : Array (Array Bool)) : Rat := Id.run do
+  let mut successes := 0
+  for i in input do
+    if n.correctlySortsArray i fun a b => a = b ∨ ((¬a) ∧ b) then
+      successes := successes + 1
+  (successes : Rat) / (input.size : Rat)
+
 def Network.isCorrect (n : Network size) : Bool := Id.run do
   let numTests := 2 ^ size
   for i in [0 : numTests] do
     let arr := i.toBitArray.pad false size
     if !n.correctlySortsArray arr fun a b => a = b ∨ ((¬a) ∧ b) then
       return false
-  return true
+  true
+
+def Network.isCorrect' (n : Network size) (input : Array (Array Bool)) : Bool := Id.run do
+  for i in input do
+    if !n.correctlySortsArray i fun a b => a = b ∨ ((¬a) ∧ b) then
+      return false
+  true
 
 def Network.swapsScore (n : Network size) : Rat :=
   if size ≤ 1 then
     if n.toSwaps.size = 0 then 0 else 1
   else
-    -- 1 - n.toSwaps.size / (size * (size - 1) / 2)
     n.toSwaps.size
 
 def Network.layersScore (n : Network size) : Rat :=
@@ -106,15 +156,6 @@ def Network.layersScore (n : Network size) : Rat :=
     if n.toArray.size = 0 then 0 else 1
   else
     n.toArray.size
-    -- 1 - n.toArray.size / (2 * size - 3)
-
-def Network.myScore1 (n : Network size) : Rat :=
-  n.swapsScore
-  -- let cs := n.correctnessScore
-  -- if cs < 1 then
-  --   cs
-  -- else
-    -- 1/2 * n.swapsScore + 1/2 * n.layersScore
 
 def Network.addLayer (n : Network size) : Network size :=
   Network.mk <| n.toArray.push <| .range size
@@ -176,6 +217,20 @@ def Network.removeDuplicateAdjacentLayers (n : Network size) : Network size := I
     i := i - 1
   Network.mk n
 
+def Network.countExchangeEndpoints (n : Network size) : Array Nat :=
+  n.toArray.foldl
+    (init := Array.replicate size 0)
+    fun acc layer =>
+      Prod.fst <|
+        layer.foldl
+          (init := (acc, 0))
+          fun (acc, a) b =>
+            if a ≠ b then
+              let acc := acc.set! a (acc[a]! + 1)
+              (acc, a + 1)
+            else
+              (acc, a + 1)
+
 def Network.addRandomSwap [RandomGen Gen] (n : Network size) (g : Gen) : Network size × Gen :=
   if size = 0 then
     (n, g)
@@ -203,23 +258,51 @@ def Network.addRandomSwaps [RandomGen Gen] (n : Network size) (g : Gen) (numSwap
     let (n, g) := n.addRandomSwap g
     n.addRandomSwaps g (numSwaps - 1)
 
-def Network.improve [RandomGen Gen] (n : Network size) (g : Gen) (fuel : Nat) (maxSwaps : Nat := (size * (size - 1) / 2)) (trustCorrect : Bool := false) : Network size × Gen :=
+
+def Network.satisfiesReachabilityCondition (nw : Network size) : Bool := Id.run do
+  let output : Array (Std.HashSet Nat) :=
+    nw.toArray.foldl
+      (init := Array.ofFn (n := size) fun i => (default : Std.HashSet Nat).insert i)
+      fun acc la => Id.run do
+        let mut acc := acc
+        for a in [0:size] do
+          let b := la[a]!
+          let mut s := default
+          (acc, s) := acc.swapRemove! a default
+          s := s.union acc[b]!
+          acc := acc.set! a s
+        acc
+  for o in output do
+    if o.size ≠ size then
+      return false
+  true
+
+def Network.improve
+    [RandomGen Gen]
+    (n : Network size)
+    (input : Array (Array Bool))
+    (g : Gen)
+    (fuel : Nat)
+    (maxSwaps : Nat := (size * (size - 1) / 2))
+    (trustCorrect : Bool := false)
+    : Network size × Gen :=
   if fuel = 0 ∨ size = 0 then
     (n, g)
   else
     let (numSwaps, g) := randNat g 1 maxSwaps
     let (n', g) := n.addRandomSwaps g numSwaps
-    let ns := if trustCorrect then 1 else n.correctnessScore
+    let ns := if trustCorrect then 1 else n.correctnessScore' input
     let (n, g, trustCorrect) := if (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
                       ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore) then
         if ns = 1 then
-          let n'correct := n'.isCorrect
+          -- let n'correct := n'.isCorrect' input
+          let n'correct := n'.satisfiesReachabilityCondition ∧ n'.isCorrect' input
           if n'correct then
             (n', g, true)
           else
             (n, g, trustCorrect)
         else
-          let nps := n'.correctnessScore
+          let nps := n'.correctnessScore' input
           if nps = 1 then
             (n', g, true)
           else
@@ -228,46 +311,21 @@ def Network.improve [RandomGen Gen] (n : Network size) (g : Gen) (fuel : Nat) (m
         if ns = 1 then
           (n, g, true)
         else
-          let nps := n'.correctnessScore
+          let nps := n'.correctnessScore' input
           if ns < nps then
             (n', g, nps = 1)
           else
             (n, g, trustCorrect)
-    n.improve g (fuel - 1)
+    n.improve input g (fuel - 1)
 
 -- Output representation consumable by Brian Pursley's "sorting-network" visualization code:
 -- https://github.com/brianpursley/sorting-network
 def Network.toPursleyString (n : Network size) : String :=
-  (fun s => s.take (s.length - 1)) <| n.toSwaps.foldl
-    (init := "")
-    fun str (a, b) =>
-      str ++ s!"{a}:{b},"
-
--- def myGen := mkStdGen 0
--- #eval (default : Network 10).improve (Gen := StdGen) myGen 10
-  -- |>.fst
-  -- |>.correctnessScore
--- #eval (default : Network 5).addRandomSwaps (Gen := StdGen) myGen 10
---   |>.fst
---   |>.correctnessScore
-
--- def bubble2 : Network 2 := Network.mk
---   #[
---     #[1, 0],
---   ]
--- #eval (default : Network 4).addSwap 10 (0, 1)
-def bubble3 : Network 3 := Network.mk
-  #[
-    #[1, 0, 2],
-    #[0, 2, 1],
-    #[1, 0, 2],
-  ]
--- def bubble4 : Network 4 := Network.mk
---   #[
---     #[1, 0, 2, 3],
---     #[0, 2, 1, 3],
---     #[1, 0, 3, 2]
---   ]
+  (fun s => s.take (s.length - 1) /- removes the trailing comma -/) <|
+    n.toSwaps.foldl
+      (init := "")
+      fun str (a, b) =>
+        str ++ s!"{a}:{b},"
 
 def Network.bubble : Network size :=
   .mk <| ascending ++ (ascending.pop |>.reverse)
@@ -282,34 +340,171 @@ where
       arr := arr.swapIfInBounds a (a + 1)
     arr
 
--- #eval (.bubble : Network 2).correctnessScore
--- #eval (.bubble : Network 3).swapsScore
--- #eval (.bubble : Network 4).swapsScore
--- #eval (.bubble : Network 5).swapsScore
--- #eval (.bubble : Network 6).swapsScore
--- #eval (.bubble : Network 7).swapsScore
--- #eval (.bubble : Network 8).swapsScore
--- #eval (.bubble : Network 9).swapsScore
--- #eval (.bubble : Network 10).swapsScore
--- #eval (.bubble : Network 0).correctnessScore
+def Network.fromLayerSwapsList (layers : List (List (Nat × Nat))) : Network size :=
+  let layers := layers.map (·.toArray) |>.toArray
+  .fromLayerSwaps layers
 
-  -- Network.fromLayers <| Array.ofFn (n := size) fun i =>
+def nw6_12x5 : Network 6 := .fromLayerSwapsList [[(0,5),(1,3),(2,4)],[(1,2),(3,4)],[(0,3),(2,5)],[(0,1),(2,3),(4,5)],[(1,2),(3,4)]]
+def nw7_16x6 : Network 7 := .fromLayerSwapsList [[(0,6),(2,3),(4,5)],[(0,2),(1,4),(3,6)],[(0,1),(2,5),(3,4)],[(1,2),(4,6)],[(2,3),(4,5)],[(1,2),(3,4),(5,6)]]
+def nw8_19x6 : Network 8 := .fromLayerSwapsList [[(0,2),(1,3),(4,6),(5,7)],[(0,4),(1,5),(2,6),(3,7)],[(0,1),(2,3),(4,5),(6,7)],[(2,4),(3,5)],[(1,4),(3,6)],[(1,2),(3,4),(5,6)]]
+def nw9_25x7 : Network 9 := .fromLayerSwapsList [[(0,3),(1,7),(2,5),(4,8)],[(0,7),(2,4),(3,8),(5,6)],[(0,2),(1,3),(4,5),(7,8)],[(1,4),(3,6),(5,7)],[(0,1),(2,4),(3,5),(6,8)],[(2,3),(4,5),(6,7)],[(1,2),(3,4),(5,6)]]
+def nw10_29x8 : Network 10 := .fromLayerSwapsList [[(0,8),(1,9),(2,7),(3,5),(4,6)],[(0,2),(1,4),(5,8),(7,9)],[(0,3),(2,4),(5,7),(6,9)],[(0,1),(3,6),(8,9)],[(1,5),(2,3),(4,8),(6,7)],[(1,2),(3,5),(4,6),(7,8)],[(2,3),(4,5),(6,7)],[(3,4),(5,6)]]
+def nw10_31x7 : Network 10 := .fromLayerSwapsList [[(0,1),(2,5),(3,6),(4,7),(8,9)],[(0,6),(1,8),(2,4),(3,9),(5,7)],[(0,2),(1,3),(4,5),(6,8),(7,9)],[(0,1),(2,7),(3,5),(4,6),(8,9)],[(1,2),(3,4),(5,6),(7,8)],[(1,3),(2,4),(5,7),(6,8)],[(2,3),(4,5),(6,7)]]
+def nw11_35x8 : Network 11 := .fromLayerSwapsList [[(0,9),(1,6),(2,4),(3,7),(5,8)],[(0,1),(3,5),(4,10),(6,9),(7,8)],[(1,3),(2,5),(4,7),(8,10)],[(0,4),(1,2),(3,7),(5,9),(6,8)],[(0,1),(2,6),(4,5),(7,8),(9,10)],[(2,4),(3,6),(5,7),(8,9)],[(1,2),(3,4),(5,6),(7,8)],[(2,3),(4,5),(6,7)]]
+def nw12_39x9 : Network 12 := .fromLayerSwapsList [[(0,8),(1,7),(2,6),(3,11),(4,10),(5,9)],[(0,1),(2,5),(3,4),(6,9),(7,8),(10,11)],[(0,2),(1,6),(5,10),(9,11)],[(0,3),(1,2),(4,6),(5,7),(8,11),(9,10)],[(1,4),(3,5),(6,8),(7,10)],[(1,3),(2,5),(6,9),(8,10)],[(2,3),(4,5),(6,7),(8,9)],[(4,6),(5,7)],[(3,4),(5,6),(7,8)]]
+def nw12_40x8 : Network 12 := .fromLayerSwapsList [[(0,8),(1,7),(2,6),(3,11),(4,10),(5,9)],[(0,2),(1,4),(3,5),(6,8),(7,10),(9,11)],[(0,1),(2,9),(4,7),(5,6),(10,11)],[(1,3),(2,7),(4,9),(8,10)],[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11)],[(1,2),(3,5),(6,8),(9,10)],[(2,4),(3,6),(5,8),(7,9)],[(1,2),(3,4),(5,6),(7,8),(9,10)]]
+def nw13_45x10 : Network 13 := .fromLayerSwapsList [[(0,12),(1,10),(2,9),(3,7),(5,11),(6,8)],[(1,6),(2,3),(4,11),(7,9),(8,10)],[(0,4),(1,2),(3,6),(7,8),(9,10),(11,12)],[(4,6),(5,9),(8,11),(10,12)],[(0,5),(3,8),(4,7),(6,11),(9,10)],[(0,1),(2,5),(6,9),(7,8),(10,11)],[(1,3),(2,4),(5,6),(9,10)],[(1,2),(3,4),(5,7),(6,8)],[(2,3),(4,5),(6,7),(8,9)],[(3,4),(5,6)]]
+def nw13_46x9 : Network 13 := .fromLayerSwapsList [[(0,11),(1,7),(2,4),(3,5),(8,9),(10,12)],[(0,2),(3,6),(4,12),(5,7),(8,10)],[(0,8),(1,3),(2,5),(4,9),(6,11),(7,12)],[(0,1),(2,10),(3,8),(4,6),(9,11)],[(1,3),(2,4),(5,10),(6,8),(7,9),(11,12)],[(1,2),(3,4),(5,8),(6,9),(7,10)],[(2,3),(4,7),(5,6),(8,11),(9,10)],[(4,5),(6,7),(8,9),(10,11)],[(3,4),(5,6),(7,8),(9,10)]]
+def nw14_51x10 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13)],[(0,2),(1,3),(4,8),(5,9),(10,12),(11,13)],[(0,4),(1,2),(3,7),(5,8),(6,10),(9,13),(11,12)],[(0,6),(1,5),(3,9),(4,10),(7,13),(8,12)],[(2,10),(3,11),(4,6),(7,9)],[(1,3),(2,8),(5,11),(6,7),(10,12)],[(1,4),(2,6),(3,5),(7,11),(8,10),(9,12)],[(2,4),(3,6),(5,8),(7,10),(9,11)],[(3,4),(5,6),(7,8),(9,10)],[(6,7)]]
+def nw14_52x9 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13)],[(0,2),(1,3),(4,8),(5,9),(10,12),(11,13)],[(0,10),(1,6),(2,11),(3,13),(5,8),(7,12)],[(1,4),(2,8),(3,6),(5,11),(7,10),(9,12)],[(0,1),(3,9),(4,10),(5,7),(6,8),(12,13)],[(1,5),(2,4),(3,7),(6,10),(8,12),(9,11)],[(1,2),(3,5),(4,6),(7,9),(8,10),(11,12)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(3,4),(5,6),(7,8),(9,10)]]
+def nw15_56x10 : Network 15 := .fromLayerSwapsList [[(1,2),(3,10),(4,14),(5,8),(6,13),(7,12),(9,11)],[(0,14),(1,5),(2,8),(3,7),(6,9),(10,12),(11,13)],[(0,7),(1,6),(2,9),(4,10),(5,11),(8,13),(12,14)],[(0,6),(2,4),(3,5),(7,11),(8,10),(9,12),(13,14)],[(0,3),(1,2),(4,7),(5,9),(6,8),(10,11),(12,13)],[(0,1),(2,3),(4,6),(7,9),(10,12),(11,13)],[(1,2),(3,5),(8,10),(11,12)],[(3,4),(5,6),(7,8),(9,10)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(5,6),(7,8)]]
 
+def goodNetworks : Array (Σ size : Nat, Network size) :=
+  #[
+    ⟨6, nw6_12x5⟩,
+    ⟨7, nw7_16x6⟩,
+    ⟨8, nw8_19x6⟩,
+    ⟨9, nw9_25x7⟩,
+    ⟨10, nw10_29x8⟩,
+    ⟨10, nw10_31x7⟩,
+    ⟨11, nw11_35x8⟩,
+    ⟨12, nw12_39x9⟩,
+    ⟨12, nw12_40x8⟩,
+    ⟨13, nw13_45x10⟩,
+    ⟨13, nw13_46x9⟩,
+    ⟨14, nw14_51x10⟩,
+    ⟨14, nw14_52x9⟩,
+    ⟨15, nw15_56x10⟩,
+  ]
 
--- set_option profiler true
--- #eval (default : Network 5).addLayer.correctnessScore
--- def nw4a : Network 4 := Network.mk
---   #[
---     #[2, 3, 0, 1],
---     #[1, 0, 3, 2],
---     #[0, 2, 1, 3],
---   ]
--- -- #eval nw4a.correctnessScore
--- #eval nw4a.swapsScore
--- #eval nw4a.correctnessScore
--- #eval (default : Network 3).correctnessScore
--- -- def sw := nw4a.toSwaps
--- -- #eval nw4a.toSwaps.run #[4, 3, 2, 1]
--- -- #eval sw.run #[4, 3, 2, 1]
--- #eval nw4a.run #[4, 3, 2, 1]
--- #eval nw4a.correctlySortsArray #[4, 3, 2, 1]
+def Network.bfsStep (n : Network size) : Array (Network size) := Id.run do
+  if size <= 1 then
+    return #[]
+  -- Number of iterations of the inner loop is 1,3,6,10,15,21, which looks like
+  -- the triangle numbers (sequence A000217 in OEIS). This is how we get the capacity
+  -- formula.
+  let mut result := Array.emptyWithCapacity (size * (size + 1) / 2)
+  let lastLayer :=
+    if n.toArray.size = 0 then
+      Array.range size
+    else
+      n.toArray[n.toArray.size - 1]!
+  for swapDist in [1:size] do
+    for a in [0:size - swapDist] do
+      let b := a + swapDist
+      let newLayers :=
+        if lastLayer[a]! = a ∧ lastLayer[b]! = b then
+          let initialLayers := n.toArray.take (n.toArray.size - 1)
+          let newLastLayer := lastLayer.swapIfInBounds a b
+          initialLayers.push newLastLayer
+        else
+          let newLastLayer := Array.range size
+          let newLastLayer := newLastLayer.swapIfInBounds a b
+          n.toArray.push newLastLayer
+      result := result.push <| Network.mk newLayers
+  result
+
+def isDuplicateComparison (layers : Array (Array Nat)) (layer : Nat) (ce : Nat × Nat) : Bool := Id.run do
+  let (a, b) := ce
+  let ta := layers[layer]![a]!
+  let tb := layers[layer]![b]!
+  if ta = a ∧ tb = b then
+    return false
+  let mut i := layer - 1
+  while true do
+    let ta' := layers[i]![a]!
+    let tb' := layers[i]![b]!
+    if ta' = ta ∧ tb' = tb then
+      return true
+    if i = 0 then
+      break
+    i := i - 1
+  false
+
+partial def Network.normalize (n : Network size) : Network size := Id.run do
+  if size <= 1 then
+    return n
+  let mut layers := n.toArray
+  let mut i := layers.size - 1
+  while i > 0 ∧ i < layers.size do
+    for a in [0:size] do
+      let b := layers[i]![a]!
+      if isDuplicateComparison layers i (a, b) then
+        let mut layerI := #[]
+        (layers, layerI) := layers.swapRemove! i #[]
+        layerI := layerI.set! a a
+        layerI := layerI.set! b b
+        layers := layers.set! i layerI
+    let mut numPopped := 0
+    if layers[i]! = layers[i - 1]! then
+      layers := layers.pop
+      numPopped := numPopped + 1
+    if layers[i]! = .range size then
+      layers := layers.pop
+      numPopped := numPopped + 1
+    i := #[i - 1, i, i - 1][numPopped]!
+  let n' := Network.mk layers
+  if n' ≠ n then
+    n'.normalize
+  else
+    n'
+
+def Network.bestNext
+    (n : Network size)
+    (nOutput : Std.HashSet (Array Bool))
+    : Network size × (Std.HashSet (Array Bool))
+    := Id.run do
+  let mut best := n
+  let mut bestOutput := nOutput
+  let candidates : Std.HashSet (Network size) :=
+    best.bfsStep.foldl
+      (init := default)
+      fun acc n => acc.insert n.normalize
+  for c in candidates do
+    let cOutputs := c.output
+    if cOutputs.size ≤ bestOutput.size then
+      best := c
+      bestOutput := cOutputs
+  (best, bestOutput)
+
+def Network.exploreBfs
+    (n : Network size)
+    (nOutput : Std.HashSet (Array Bool))
+    (fuel : Nat)
+    : Network size × (Std.HashSet (Array Bool))
+    := Id.run do
+  let mut best := n
+  let mut bestOutput := nOutput
+  for _ in [0:fuel] do
+    if bestOutput.size = size + 1 then
+      return (best, bestOutput)
+    (best, bestOutput) := best.bestNext bestOutput
+  (best, bestOutput)
+
+def Array.isValidLayer (la : Array Nat) : Bool := Id.run do
+  for i in [0:la.size] do
+    if let some lai := la[i]? then
+      if let some lalai := la[lai]? then
+        if i = lalai then
+          continue
+    return false
+  true
+
+def Array.permutations (arr : Array Nat) : Array (Array Nat) :=
+  arr.toList.permutations.toArray.map (·.toArray)
+
+def Nat.factorial (n : Nat) : Nat :=
+  go n 1
+where
+  go (n : Nat) (acc : Nat) : Nat :=
+    if n = 0 then acc else go (n - 1) (n * acc)
+
+-- Sequence A000085 in OEIS
+def countValidLayers (size : Nat) : Nat :=
+  (size / 2 + 1).fold
+    (init := 0)
+    fun k _ acc =>
+      acc + size.factorial / ((size - 2 * k).factorial * 2 ^ k * k.factorial)
+
+def countValidLayersViaPermutationFiltering (size : Nat) : Nat :=
+  (Array.range size).permutations.filter (·.isValidLayer) |>.size
