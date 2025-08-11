@@ -1,7 +1,8 @@
 import Std.Data.HashSet
-import Batteries.Data.Rat
-import Mathlib.Data.List.Defs
+-- import Batteries.Data.Rat
+-- import Mathlib.Data.List.Defs
 import SortingNetworkSearch.LFSR
+import SortingNetworkSearchFFI
 
 def Nat.toBitArray (n : Nat) : Array Bool := Id.run do
   let mut result := default
@@ -87,22 +88,18 @@ def Network.fromLayerSwaps (layers : Array (Array (UInt8 × UInt8))) : Network s
           let acc := acc.set! b.toNat a
           acc
 
-#check (· >>> · : UInt64 → UInt8 → UInt64)
-
-@[inline]
 def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
-  let aBitPos := a.toUInt64
-  let bBitPos := b.toUInt64
-  let aBit := val >>> aBitPos &&& 1
-  let bBit := val >>> bBitPos &&& 1
+  let aBit := val >>> a &&& 1
+  let bBit := val >>> b &&& 1
   let aBit' := bBit &&& aBit
   let bBit' := bBit ||| aBit
-  let aBit's := aBit' <<< aBitPos
-  let bBit's := bBit' <<< bBitPos
-  let na := ~~~(1 <<< aBitPos)
-  let nb := ~~~(1 <<< bBitPos)
+  let aBit's := aBit' <<< a
+  let bBit's := bBit' <<< b
+  let na := ~~~((1 : UInt64) <<< a)
+  let nb := ~~~((1 : UInt64) <<< b)
   let val := val &&& na &&& nb
-  val ||| aBit's ||| bBit's
+  let val := val ||| aBit's ||| bBit's
+  val
 
 @[grind]
 structure CompiledNetwork where
@@ -130,7 +127,6 @@ def Network.compile (n : Network size) : CompiledNetwork :=
   else by
     refine CompiledNetwork.mk .empty .empty (by grind) (by grind)
 
-@[inline]
 def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 := Id.run do
   let mut input := input
   let mut i : USize := 0
@@ -140,14 +136,6 @@ def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 := Id.ru
     input := binaryCompareAndSwap b a input
     i := i + 1
   input
-  -- n.as.size.fold
-  --   (init := input)
-  --   fun layer b acc =>
-  --     Prod.fst <|
-  --       layer.foldl
-  --         (init := (acc, 0))
-  --         fun (acc, a) b =>
-  --           (binaryCompareAndSwap a b acc, a + 1)
 
 @[inline]
 def UInt64.bitsSorted (n : UInt64) : Bool :=
@@ -560,10 +548,6 @@ def nw14_51x10 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,
 def nw14_52x9 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13)],[(0,2),(1,3),(4,8),(5,9),(10,12),(11,13)],[(0,10),(1,6),(2,11),(3,13),(5,8),(7,12)],[(1,4),(2,8),(3,6),(5,11),(7,10),(9,12)],[(0,1),(3,9),(4,10),(5,7),(6,8),(12,13)],[(1,5),(2,4),(3,7),(6,10),(8,12),(9,11)],[(1,2),(3,5),(4,6),(7,9),(8,10),(11,12)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(3,4),(5,6),(7,8),(9,10)]]
 def nw15_56x10 : Network 15 := .fromLayerSwapsList [[(1,2),(3,10),(4,14),(5,8),(6,13),(7,12),(9,11)],[(0,14),(1,5),(2,8),(3,7),(6,9),(10,12),(11,13)],[(0,7),(1,6),(2,9),(4,10),(5,11),(8,13),(12,14)],[(0,6),(2,4),(3,5),(7,11),(8,10),(9,12),(13,14)],[(0,3),(1,2),(4,7),(5,9),(6,8),(10,11),(12,13)],[(0,1),(2,3),(4,6),(7,9),(10,12),(11,13)],[(1,2),(3,5),(8,10),(11,12)],[(3,4),(5,6),(7,8),(9,10)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(5,6),(7,8)]]
 
-#eval nw6_12x5.compile
-#eval binaryCompareAndSwap 0 1 0b01 |>.toBitString
-#eval nw6_12x5.correctnessScore
-
 def goodNetworks : Array (Σ size : UInt8, Network size) :=
   #[
     ⟨6, nw6_12x5⟩,
@@ -582,110 +566,6 @@ def goodNetworks : Array (Σ size : UInt8, Network size) :=
     ⟨15, nw15_56x10⟩,
   ]
 
--- def Network.bfsStep (n : Network size) : Array (Network size) := Id.run do
---   if size <= 1 then
---     return #[]
---   -- Number of iterations of the inner loop is 1,3,6,10,15,21, which looks like
---   -- the triangle numbers (sequence A000217 in OEIS). This is how we get the capacity
---   -- formula.
---   let mut result := Array.emptyWithCapacity (size * (size + 1) / 2).toNat
---   let lastLayer :=
---     if n.toArray.size = 0 then
---       Array.range size
---     else
---       n.toArray[n.toArray.size - 1]!
---   for swapDist in [1:size] do
---     for a in [0:size - swapDist] do
---       let b := a + swapDist
---       let newLayers :=
---         if lastLayer[a]! = a ∧ lastLayer[b]! = b then
---           let initialLayers := n.toArray.take (n.toArray.size - 1)
---           let newLastLayer := lastLayer.swapIfInBounds a b
---           initialLayers.push newLastLayer
---         else
---           let newLastLayer := Array.range size
---           let newLastLayer := newLastLayer.swapIfInBounds a b
---           n.toArray.push newLastLayer
---       result := result.push <| Network.mk newLayers
---   result
-
--- def isDuplicateComparison (layers : Array (Array Nat)) (layer : Nat) (ce : Nat × Nat) : Bool := Id.run do
---   let (a, b) := ce
---   let ta := layers[layer]![a]!
---   let tb := layers[layer]![b]!
---   if ta = a ∧ tb = b then
---     return false
---   let mut i := layer - 1
---   while true do
---     let ta' := layers[i]![a]!
---     let tb' := layers[i]![b]!
---     if ta' = ta ∧ tb' = tb then
---       return true
---     if i = 0 then
---       break
---     i := i - 1
---   false
-
--- partial def Network.normalize (n : Network size) : Network size := Id.run do
---   if size <= 1 then
---     return n
---   let mut layers := n.toArray
---   let mut i := layers.size - 1
---   while i > 0 ∧ i < layers.size do
---     for a in [0:size] do
---       let b := layers[i]![a]!
---       if isDuplicateComparison layers i (a, b) then
---         let mut layerI := #[]
---         (layers, layerI) := layers.swapRemove! i #[]
---         layerI := layerI.set! a a
---         layerI := layerI.set! b b
---         layers := layers.set! i layerI
---     let mut numPopped := 0
---     if layers[i]! = layers[i - 1]! then
---       layers := layers.pop
---       numPopped := numPopped + 1
---     if layers[i]! = .range size then
---       layers := layers.pop
---       numPopped := numPopped + 1
---     i := #[i - 1, i, i - 1][numPopped]!
---   let n' := Network.mk layers
---   if n' ≠ n then
---     n'.normalize
---   else
---     n'
-
--- def Network.bestNext
---     (n : Network size)
---     (nOutput : Std.HashSet UInt64)
---     : Network size × (Std.HashSet UInt64)
---     := Id.run do
---   let mut best := n
---   let mut bestOutput := nOutput
---   let candidates : Std.HashSet (Network size) :=
---     best.bfsStep.foldl
---       (init := default)
---       fun acc n => acc.insert n.normalize
---   for c in candidates do
---     let cOutputs := c.output
---     if cOutputs.size ≤ bestOutput.size then
---       best := c
---       bestOutput := cOutputs
---   (best, bestOutput)
-
--- def Network.exploreBfs
---     (n : Network size)
---     (nOutput : Std.HashSet UInt64)
---     (fuel : Nat)
---     : Network size × (Std.HashSet UInt64)
---     := Id.run do
---   let mut best := n
---   let mut bestOutput := nOutput
---   for _ in [0:fuel] do
---     if bestOutput.size = size + 1 then
---       return (best, bestOutput)
---     (best, bestOutput) := best.bestNext bestOutput
---   (best, bestOutput)
-
 def Array.isValidLayer (la : Array Nat) : Bool := Id.run do
   for i in [0:la.size] do
     if let some lai := la[i]? then
@@ -694,9 +574,6 @@ def Array.isValidLayer (la : Array Nat) : Bool := Id.run do
           continue
     return false
   true
-
-def Array.permutations (arr : Array Nat) : Array (Array Nat) :=
-  arr.toList.permutations.toArray.map (·.toArray)
 
 def Nat.factorial (n : Nat) : Nat :=
   go n 1
@@ -710,16 +587,3 @@ def countValidLayers (size : Nat) : Nat :=
     (init := 0)
     fun k _ acc =>
       acc + size.factorial / ((size - 2 * k).factorial * 2 ^ k * k.factorial)
-
-def countValidLayersViaPermutationFiltering (size : Nat) : Nat :=
-  (Array.range size).permutations.filter (·.isValidLayer) |>.size
-
--- #eval (Array.range 5)
---   |>.permutations
---   |>.filter (·.isValidLayer)
-
--- #eval (Array.range 5)
---   |>.permutations
---   |>.filter (·.isValidLayer)
---   |>.map (fun (l : Array Nat) => (l, Layer.rotate l 1, (Layer.rotate l 1).isValidLayer))
---   |>.filter (·.snd.snd)

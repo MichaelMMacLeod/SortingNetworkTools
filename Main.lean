@@ -56,7 +56,7 @@ partial def main (args : List String) : IO Unit := do
           println! s!"Found a size {size} network with {swaps} CEs and {layers} layers after iteration {i} with {numRestarts} restarts"
       else
         let duration := (← IO.monoMsNow) - lastImprovementTime
-        if lastImprovementDuration ≠ 0 ∧ duration > lastImprovementDuration * (1 + numRestarts) then
+        if lastImprovementDuration ≠ 0 ∧ duration > lastImprovementDuration * (5 + numRestarts.log2) then
           n := default
           isCorrect := false
           lastFailures := none
