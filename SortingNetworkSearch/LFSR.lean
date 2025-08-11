@@ -49,7 +49,20 @@ def mkLFSR (coefficients : Array Nat) : Nat → Nat :=
          acc ^^^ (state >>> coefficient)
     state >>> 1 ||| bit <<< numBitsSub1
 
+def mkLFSR64 (coefficients : Array UInt64) : UInt64 → UInt64 :=
+  let numBitsSub1 := coefficients[0]! - 1
+  let trailingCoefficients := coefficients.drop 1
+  fun state =>
+    let bit : UInt64 :=
+      (1 : UInt64) &&&
+      trailingCoefficients.foldl
+       (init := state)
+       fun acc coefficient =>
+         acc ^^^ (state >>> coefficient)
+    state >>> 1 ||| bit <<< numBitsSub1
+
 def LFSRArray : Array (Nat → Nat) := coefficients.map (mkLFSR ·)
+def LFSR64Array : Array (UInt64 → UInt64) := coefficients.map (·.map (·.toUInt64)) |>.map (mkLFSR64 ·)
 
 /--
 Generates a random `Nat` using at most `size` bits and an initial `seed`. If the
@@ -62,6 +75,9 @@ def LFSR.randNat (size : Nat) (seed : Nat) : Nat :=
     panic! s!"LFSR only implemented for 2..={LFSRArray.size + 1} sizes"
   else
     LFSRArray[size - 2] seed
+
+def LFSR.rand64 (size : UInt64) (seed : UInt64) : UInt64 :=
+  LFSR64Array[size.toUSize - 2]! seed
 
 def checkPeriod (f : Nat → Nat) : Nat := Id.run do
   let start := 1

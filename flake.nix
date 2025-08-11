@@ -35,6 +35,7 @@
               jq
               nixfmt-rfc-style
               elan
+              lld
               (vscode-with-extensions.override {
                 vscode = vscodium;
                 vscodeExtensions = with vscode-extensions;

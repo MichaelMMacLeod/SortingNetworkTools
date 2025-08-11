@@ -2,7 +2,11 @@ import SortingNetworkSearch
 import SortingNetworkSearch.LFSR
 
 partial def main (args : List String) : IO Unit := do
-  let size := args[0]!.toNat!
+  -- let n : Network 3 := Network.mk #[.mk #[0, 2, 1], .mk #[0, 2, 1]]
+  -- let n := show Network 3 from default
+  -- let (n, g, lastFailures) := n.improve (mkStdGen) 50 (.some 1) true
+  -- println! "{n.toArray} {lastFailures}"
+  let size := args[0]!.toNat!.toUInt8
   let symmetric := args[1]! = "true"
   let mut lastFailures : Option Nat := .some 1
   let mut n : Network size := default
@@ -18,7 +22,7 @@ partial def main (args : List String) : IO Unit := do
   let mut lastImprovementDuration := 0
   let mut numRestarts := 0
   while true do
-    (n, g, lastFailures) := n.improve g 50 lastFailures symmetric ((size * (size - 1) / 2))
+    (n, g, lastFailures) := n.improve g 50 lastFailures symmetric ((size * (size - 1) / 2)).toNat
     i := i + 1
     if !isCorrect ∧ lastFailures = some 0 then
       isCorrect := true
