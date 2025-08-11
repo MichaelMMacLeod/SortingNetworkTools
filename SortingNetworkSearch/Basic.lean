@@ -13,6 +13,20 @@ def Nat.toBitString (n : Nat) : String := n.toBitArray.reverse.map (·.toNat) |>
 
 def UInt64.toBitString (u : UInt64) : String := u.toNat.toBitString
 
+@[grind →]
+theorem ByteArray.usize_index_lt_size
+    (arr : ByteArray)
+    (idx : USize)
+    (h : idx < arr.usize)
+    (h2 : arr.size < USize.size)
+    : idx.toNat < arr.size := by
+  exact (USize.lt_ofNat_iff h2).mp h
+
+@[grind =]
+theorem ByteArray.size_uset {xs : ByteArray} {v : UInt8} {i : USize} (h : i.toNat < xs.size) :
+    (uset xs i v h).size = xs.size := by
+  apply Array.size_uset
+
 instance : Repr ByteArray where
   reprPrec b n := reprPrec b.toList.toArray n
 
@@ -88,16 +102,42 @@ def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
   let val := val &&& na &&& nb
   val ||| aBit's ||| bBit's
 
+@[grind]
+structure CompiledNetwork where
+  as : ByteArray
+  bs : ByteArray
+  size_eq : as.size = bs.size
+  size_lt_USize_size : as.size < USize.size
+
+attribute [grind →] ByteArray.size
+
+def Network.compile (n : Network size) : CompiledNetwork :=
+  let swaps := n.toSwaps |>.unzip
+  if h : swaps.fst.size = swaps.snd.size ∧ swaps.fst.size < USize.size then by
+    refine CompiledNetwork.mk (.mk swaps.fst) (.mk swaps.snd) (by grind) (by grind)
+  else by
+    refine CompiledNetwork.mk .empty .empty (by grind) ?_
+    unfold ByteArray.size
+    exact USize.size_pos
+
 @[inline]
-def Network.run (n : Network size) (input : UInt64) : UInt64 :=
-  n.toArray.foldl
-    (init := input)
-    fun acc layer =>
-      Prod.fst <|
-        layer.foldl
-          (init := (acc, 0))
-          fun (acc, a) b =>
-            (binaryCompareAndSwap a b acc, a + 1)
+def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 := Id.run do
+  let mut input := input
+  let mut i : USize := 0
+  while h : i < n.as.usize do
+    let a := n.as.uget i (by grind)
+    let b := n.bs.uget i (by grind)
+    input := binaryCompareAndSwap b a input
+    i := i + 1
+  input
+  -- n.as.size.fold
+  --   (init := input)
+  --   fun layer b acc =>
+  --     Prod.fst <|
+  --       layer.foldl
+  --         (init := (acc, 0))
+  --         fun (acc, a) b =>
+  --           (binaryCompareAndSwap a b acc, a + 1)
 
 @[inline]
 def UInt64.bitsSorted (n : UInt64) : Bool :=
@@ -105,12 +145,13 @@ def UInt64.bitsSorted (n : UInt64) : Bool :=
   n &&& (n - 1) = 0
 
 @[inline]
-def Network.correctlySortsInput (n : Network size) (input : UInt64) : Bool :=
+def CompiledNetwork.correctlySortsInput (n : CompiledNetwork) (input : UInt64) : Bool :=
   n.run input |>.bitsSorted
 
 def Network.output (n : Network size) : Std.HashSet UInt64 := Id.run do
   let mut result := default
   let numInputs := 2 ^ size.toNat
+  let n := n.compile
   for i in [0:numInputs] do
     let output := n.run i.toUInt64
     result := result.insert output
@@ -121,6 +162,7 @@ def Network.correctnessScore (n : Network size) : Nat × Nat := Id.run do
   let mut failures := 0
   let mut start : UInt64 := 1
   let mut i := start
+  let n := n.compile
   while true do
     if n.correctlySortsInput i then
       successes := successes + 1
@@ -150,20 +192,6 @@ def Array.swapRemove! [Inhabited α] (arr : Array α) (i : Nat) (a : α) : Array
   let result := arr[i]!
   let arr := arr.set! i a
   (arr, result)
-
-@[grind →]
-theorem ByteArray.usize_index_lt_size
-    (arr : ByteArray)
-    (idx : USize)
-    (h : idx < arr.usize)
-    (h2 : arr.size < USize.size)
-    : idx.toNat < arr.size := by
-  exact (USize.lt_ofNat_iff h2).mp h
-
-@[grind =]
-theorem ByteArray.size_uset {xs : ByteArray} {v : UInt8} {i : USize} (h : i.toNat < xs.size) :
-    (uset xs i v h).size = xs.size := by
-  apply Array.size_uset
 
 def ByteArray.swapIfInBounds (ba : ByteArray) (a : UInt8) (b : UInt8) (h : ba.size < USize.size) : ByteArray :=
   if h : a.toUSize < ba.usize ∧ b.toUSize < ba.usize then
@@ -456,7 +484,7 @@ def Network.improve
   if fuel = 0 ∨ size = 0 then
     (n, g, lastFailures)
   else
-    let nIsCorrect := lastFailures.getD 1 = 0
+    let nIsCorrect : Bool := lastFailures.getD 1 = 0
     let (numMutations, g) := randNat g 1 numMutations
     let (n', g) := n.mutate g numMutations symmetric
     let n'IsSmaller :=
@@ -521,6 +549,10 @@ def nw13_46x9 : Network 13 := .fromLayerSwapsList [[(0,11),(1,7),(2,4),(3,5),(8,
 def nw14_51x10 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13)],[(0,2),(1,3),(4,8),(5,9),(10,12),(11,13)],[(0,4),(1,2),(3,7),(5,8),(6,10),(9,13),(11,12)],[(0,6),(1,5),(3,9),(4,10),(7,13),(8,12)],[(2,10),(3,11),(4,6),(7,9)],[(1,3),(2,8),(5,11),(6,7),(10,12)],[(1,4),(2,6),(3,5),(7,11),(8,10),(9,12)],[(2,4),(3,6),(5,8),(7,10),(9,11)],[(3,4),(5,6),(7,8),(9,10)],[(6,7)]]
 def nw14_52x9 : Network 14 := .fromLayerSwapsList [[(0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13)],[(0,2),(1,3),(4,8),(5,9),(10,12),(11,13)],[(0,10),(1,6),(2,11),(3,13),(5,8),(7,12)],[(1,4),(2,8),(3,6),(5,11),(7,10),(9,12)],[(0,1),(3,9),(4,10),(5,7),(6,8),(12,13)],[(1,5),(2,4),(3,7),(6,10),(8,12),(9,11)],[(1,2),(3,5),(4,6),(7,9),(8,10),(11,12)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(3,4),(5,6),(7,8),(9,10)]]
 def nw15_56x10 : Network 15 := .fromLayerSwapsList [[(1,2),(3,10),(4,14),(5,8),(6,13),(7,12),(9,11)],[(0,14),(1,5),(2,8),(3,7),(6,9),(10,12),(11,13)],[(0,7),(1,6),(2,9),(4,10),(5,11),(8,13),(12,14)],[(0,6),(2,4),(3,5),(7,11),(8,10),(9,12),(13,14)],[(0,3),(1,2),(4,7),(5,9),(6,8),(10,11),(12,13)],[(0,1),(2,3),(4,6),(7,9),(10,12),(11,13)],[(1,2),(3,5),(8,10),(11,12)],[(3,4),(5,6),(7,8),(9,10)],[(2,3),(4,5),(6,7),(8,9),(10,11)],[(5,6),(7,8)]]
+
+#eval nw6_12x5.compile
+#eval binaryCompareAndSwap 0 1 0b01 |>.toBitString
+#eval nw6_12x5.correctnessScore
 
 def goodNetworks : Array (Σ size : UInt8, Network size) :=
   #[
