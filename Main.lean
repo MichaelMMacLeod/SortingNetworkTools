@@ -3,22 +3,22 @@ import SortingNetworkSearch.LFSR
 
 def main (args : List String) : IO Unit := do
   let size := args[0]!.toNat!
+  let mut lastFailures : Option Nat := .some 1
   let mut n : Network size := default
   let mut g := mkStdGen 0
   let mut i := 1
   let mut isCorrect := false
   let mut bestCEs := 0
   let mut bestLayers := 0
-  let input := mkInput size
   while true do
-    (n, g) := n.improve input g 50
+    (n, g, lastFailures) := n.improve g 50 lastFailures
     i := i + 1
-    if !isCorrect ∧ n.correctnessScore' input = 1 then
+    if !isCorrect ∧ n.isCorrect' then
       isCorrect := true
       bestCEs := n.swapsScore
       bestLayers := n.layersScore
       println! s!"{n.toPursleyString}"
-        println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i}"
+      println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i}"
     else if isCorrect then
       let swaps := n.swapsScore
       let layers := n.layersScore

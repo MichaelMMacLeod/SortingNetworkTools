@@ -3,6 +3,16 @@ import Batteries.Data.Rat
 import Mathlib.Data.List.Defs
 import SortingNetworkSearch.LFSR
 
+def Nat.toBitArray (n : Nat) : Array Bool := Id.run do
+  let mut result := default
+  for i in [0 : Nat.log2 n + 1] do
+    result := result.push <| (n >>> i) &&& 1 = 1
+  result
+
+def Nat.toBitString (n : Nat) : String := n.toBitArray.reverse.map (·.toNat) |>.foldl (· ++ ·.repr) ""
+
+def UInt64.toBitString (u : UInt64) : String := u.toNat.toBitString
+
 structure Network (size : Nat) where
   toArray : Array (Array Nat)
   deriving Repr, DecidableEq, Hashable
@@ -45,8 +55,36 @@ def Network.fromLayerSwaps (layers : Array Swaps) : Network size :=
 --     fun arr (a, b) =>
 --       if !(le arr[a]! arr[b]!) then arr.swapIfInBounds a b else arr
 
+def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
+  let aBitPos := a.toUInt64 --size - a - 1 |>.toUInt64
+  let bBitPos := b.toUInt64 --size - b - 1 |>.toUInt64
+  let aBit := val >>> aBitPos &&& 1
+  let bBit := val >>> bBitPos &&& 1
+  let aBit' := bBit &&& aBit
+  let bBit' := bBit ||| aBit
+  let aBit's := aBit' <<< aBitPos
+  let bBit's := bBit' <<< bBitPos
+  let na := ~~~(1 <<< aBitPos)
+  let nb := ~~~(1 <<< bBitPos)
+  let val := val &&& na &&& nb
+  val ||| aBit's ||| bBit's
+
+def Network.run (n : Network size) (input : UInt64) : UInt64 :=
+  n.toArray.foldl
+    (init := input)
+    fun acc layer =>
+      Prod.fst <|
+        layer.foldl
+          (init := (acc, 0))
+          fun (acc, a) b =>
+            (binaryCompareAndSwap a.toUInt8 b.toUInt8 acc, a + 1)
+
+def UInt64.bitsSorted (n : UInt64) : Bool :=
+  let n := n ^^^ (n >>> 1)
+  n &&& (n - 1) = 0
+
 @[specialize]
-def Network.run
+def Network.run'
     [Inhabited α]
     (n : Network size)
     (arr : Array α)
@@ -62,12 +100,6 @@ where
         let arr := if i ≠ ce ∧ !(le arr[ce]! arr[i]!) then arr.swapIfInBounds i ce else arr
         (arr, i + 1)
     arr
-
-def Nat.toBitArray (n : Nat) : Array Bool := Id.run do
-  let mut result := default
-  for i in [0 : Nat.log2 n + 1] do
-    result := result.push <| (n >>> i) &&& 1 = 1
-  result
 
 @[specialize]
 def Array.sorted [Inhabited α] (arr : Array α)
@@ -101,48 +133,57 @@ def mkInput (size : Nat) : Array (Array Bool) :=
   (Array.shuffle · mkStdGen) <| .ofFn (n := 2 ^ size) fun i =>
     i.toNat.toBitArray.pad false size
 
-@[specialize]
-def Network.correctlySortsArray [Inhabited α] (n : Network size) (arr : Array α)
-    (le : α → α → Bool := by exact fun a b => a ≤ b) : Bool :=
-  n.run arr le |>.sorted le
+def Network.correctlySortsInput (n : Network size) (input : UInt64) : Bool :=
+  n.run input |>.bitsSorted
 
-def Network.output (n : Network size) : Std.HashSet (Array Bool) := Id.run do
+def Network.output (n : Network size) : Std.HashSet UInt64 := Id.run do
   let mut result := default
   let numInputs := 2 ^ size
   for i in [0:numInputs] do
-    let input := i.toBitArray.pad false size
-    let output := n.run input
+    let output := n.run i.toUInt64
     result := result.insert output
   result
 
-def Network.correctnessScore (n : Network size) : Rat := Id.run do
+-- def Network.correctnessScore (n : Network size) : Rat := Id.run do
+--   let mut successes := 0
+--   let numTests := 2 ^ size
+--   for i in [0 : numTests] do
+--     if n.correctlySortsInput i.toUInt64 then
+--       successes := successes + 1
+--   (successes : Rat) / (numTests : Rat)
+
+def Network.correctnessScore' (n : Network size) : Nat × Nat := Id.run do
   let mut successes := 0
-  let numTests := 2 ^ size
-  for i in [0 : numTests] do
-    let arr := i.toBitArray.pad false size
-    if n.correctlySortsArray arr fun a b => a = b ∨ ((¬a) ∧ b) then
+  let mut failures := 0
+  let mut start : Nat := 1
+  let mut i := start
+  while true do
+    if n.correctlySortsInput i.toUInt64 then
       successes := successes + 1
-  (successes : Rat) / (numTests : Rat)
+    else
+      failures := failures + 1
+    i := LFSR.randNat size i
+    if i = 1 then
+      break
+  pure (successes, failures)
+  -- ((dbgTraceVal successes) : Rat) / ((2 ^ size - 1 : Nat) : Rat)
 
-def Network.correctnessScore' (n : Network size) (input : Array (Array Bool)) : Rat := Id.run do
-  let mut successes := 0
-  for i in input do
-    if n.correctlySortsArray i fun a b => a = b ∨ ((¬a) ∧ b) then
-      successes := successes + 1
-  (successes : Rat) / (input.size : Rat)
+-- def Network.isCorrect (n : Network size) : Bool := Id.run do
+--   let numTests := 2 ^ size
+--   for i in [0 : numTests] do
+--     if !n.correctlySortsInput i.toUInt64 then
+--       return false
+--   true
 
-def Network.isCorrect (n : Network size) : Bool := Id.run do
-  let numTests := 2 ^ size
-  for i in [0 : numTests] do
-    let arr := i.toBitArray.pad false size
-    if !n.correctlySortsArray arr fun a b => a = b ∨ ((¬a) ∧ b) then
+def Network.isCorrect' (n : Network size) : Bool := Id.run do
+  let mut start : Nat := 1
+  let mut i := start
+  while true do
+    if !n.correctlySortsInput i.toUInt64 then
       return false
-  true
-
-def Network.isCorrect' (n : Network size) (input : Array (Array Bool)) : Bool := Id.run do
-  for i in input do
-    if !n.correctlySortsArray i fun a b => a = b ∨ ((¬a) ∧ b) then
-      return false
+    i := LFSR.randNat size i
+    if i = 1 then
+      break
   true
 
 def Network.swapsScore (n : Network size) : Rat :=
@@ -280,43 +321,35 @@ def Network.satisfiesReachabilityCondition (nw : Network size) : Bool := Id.run 
 def Network.improve
     [RandomGen Gen]
     (n : Network size)
-    (input : Array (Array Bool))
     (g : Gen)
     (fuel : Nat)
+    (lastFailures : Option Nat)
     (maxSwaps : Nat := (size * (size - 1) / 2))
-    (trustCorrect : Bool := false)
-    : Network size × Gen :=
+    : Network size × Gen × Option Nat :=
   if fuel = 0 ∨ size = 0 then
-    (n, g)
+    (n, g, lastFailures)
   else
+    let nIsCorrect := lastFailures.getD 1 = 0
     let (numSwaps, g) := randNat g 1 maxSwaps
     let (n', g) := n.addRandomSwaps g numSwaps
-    let ns := if trustCorrect then 1 else n.correctnessScore' input
-    let (n, g, trustCorrect) := if (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
-                      ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore) then
-        if ns = 1 then
-          -- let n'correct := n'.isCorrect' input
-          let n'correct := n'.satisfiesReachabilityCondition ∧ n'.isCorrect' input
-          if n'correct then
-            (n', g, true)
-          else
-            (n, g, trustCorrect)
+    let n'IsSmaller :=
+      (n'.swapsScore ≤ n.swapsScore ∧ n'.layersScore ≤ n.layersScore)
+      ∧ (n'.swapsScore ≠ n.swapsScore ∨ n'.layersScore ≠ n.layersScore)
+    let (n, g, lastFailures) :=
+      if n'IsSmaller then
+        let (_successes, failures) := n'.correctnessScore'
+        let n'IsCorrect := failures = 0
+        if n'IsCorrect then
+          (n', g, failures)
         else
-          let nps := n'.correctnessScore' input
-          if nps = 1 then
-            (n', g, true)
-          else
-            (n, g, trustCorrect)
+          (n, g, lastFailures)
       else
-        if ns = 1 then
-          (n, g, true)
+        if nIsCorrect then
+          (n, g, lastFailures)
         else
-          let nps := n'.correctnessScore' input
-          if ns < nps then
-            (n', g, nps = 1)
-          else
-            (n, g, trustCorrect)
-    n.improve input g (fuel - 1)
+          let (_successes, failures) := n'.correctnessScore'
+          (n', g, failures)
+    n.improve g (fuel - 1) lastFailures maxSwaps
 
 -- Output representation consumable by Brian Pursley's "sorting-network" visualization code:
 -- https://github.com/brianpursley/sorting-network
@@ -451,8 +484,8 @@ partial def Network.normalize (n : Network size) : Network size := Id.run do
 
 def Network.bestNext
     (n : Network size)
-    (nOutput : Std.HashSet (Array Bool))
-    : Network size × (Std.HashSet (Array Bool))
+    (nOutput : Std.HashSet UInt64)
+    : Network size × (Std.HashSet UInt64)
     := Id.run do
   let mut best := n
   let mut bestOutput := nOutput
@@ -469,9 +502,9 @@ def Network.bestNext
 
 def Network.exploreBfs
     (n : Network size)
-    (nOutput : Std.HashSet (Array Bool))
+    (nOutput : Std.HashSet UInt64)
     (fuel : Nat)
-    : Network size × (Std.HashSet (Array Bool))
+    : Network size × (Std.HashSet UInt64)
     := Id.run do
   let mut best := n
   let mut bestOutput := nOutput
@@ -508,3 +541,11 @@ def countValidLayers (size : Nat) : Nat :=
 
 def countValidLayersViaPermutationFiltering (size : Nat) : Nat :=
   (Array.range size).permutations.filter (·.isValidLayer) |>.size
+
+-- #eval Array.range 16
+--   |>.map (·.toUInt64)
+--   |>.map fun i => (
+--     i.toBitString,
+--     goodNetworks[0].snd.run i |>.toBitString,
+--     goodNetworks[0].snd.correctlySortsInput i
+--   )
