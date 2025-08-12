@@ -39,33 +39,33 @@ theorem binaryParallelCompareAndSwap_size_eq
   simp [binaryParallelCompareAndSwap]
 
 @[grind]
-structure CompiledNetwork.runParallel.h (n : CompiledNetwork size) (vals : Array UInt64) where
-  size_vals_lt_size_USize : vals.size < USize.size := by grind
-  lt_usize_as : ∀ a ∈ n.as, a < vals.usize := by grind
-  lt_usize_bs : ∀ b ∈ n.bs, b < vals.usize := by grind
+structure CompiledNetwork.runTestPack.h (n : CompiledNetwork size) (testPack : Array UInt64) where
+  size_vals_lt_size_USize : testPack.size < USize.size := by grind
+  lt_usize_as : ∀ a ∈ n.as, a < testPack.usize := by grind
+  lt_usize_bs : ∀ b ∈ n.bs, b < testPack.usize := by grind
 
-partial def CompiledNetwork.runParallel
+partial def CompiledNetwork.runTestPack
     (n : CompiledNetwork size)
-    (vals : Subtype (runParallel.h n ·))
+    (testPack : Subtype (runTestPack.h n ·))
     : Array UInt64 :=
   let rec loop
       (i : USize)
-      (vals : Subtype (runParallel.h n ·))
+      (testPack : Subtype (runTestPack.h n ·))
       : Array UInt64 :=
     if h : i < n.as.usize then
       let a := n.as.uget i (by grind)
       let b := n.bs.uget i (by grind)
-      have vals_property := vals.property
-      let vals := ⟨vals, by grind⟩
-      let vals' := binaryParallelCompareAndSwap a b vals
-      have size_eq := binaryParallelCompareAndSwap_size_eq a b vals
-      have runParallel_h : runParallel.h n vals' := by
-        apply runParallel.h.mk
-        all_goals simp only [size_eq, vals']
-        . exact vals_property.size_vals_lt_size_USize
+      have testPack_property := testPack.property
+      let testPack := ⟨testPack, by grind⟩
+      let testPack' := binaryParallelCompareAndSwap a b testPack
+      have size_eq := binaryParallelCompareAndSwap_size_eq a b testPack
+      have runParallel_h : runTestPack.h n testPack' := by
+        apply runTestPack.h.mk
+        all_goals simp only [size_eq, testPack']
+        . exact testPack_property.size_vals_lt_size_USize
         all_goals simp only [Array.usize, size_eq, Nat.toUSize_eq]
-        . exact vals_property.lt_usize_as
-        . exact vals_property.lt_usize_bs
-      loop (i + 1) ⟨vals', by grind⟩
-    else vals
-  loop 0 vals
+        . exact testPack_property.lt_usize_as
+        . exact testPack_property.lt_usize_bs
+      loop (i + 1) ⟨testPack', by grind⟩
+    else testPack
+  loop 0 testPack

@@ -1,7 +1,7 @@
 import Std.Data.HashSet
 import SortingNetworkSearch.LFSR
 import SortingNetworkSearch.CompiledNetwork
-import SortingNetworkSearch.Pack
+import SortingNetworkSearch.TestPack
 import SortingNetworkSearch.ExtraTheorems
 import SortingNetworkSearch.Layer
 import SortingNetworkSearch.ArrayExtras
@@ -50,7 +50,7 @@ def CompiledNetwork.countTestFailures (c : CompiledNetwork size) : UInt64 := Id.
       if h : dest.usize = size then
         (dest, seed) := TestPack.mkRandom size dest ⟨src, by grind⟩ seed
         if h : dest.usize = size ∧ dest.size < USize.size then
-          dest := c.runParallel ⟨dest, by grind⟩
+          dest := c.runTestPack ⟨dest, by grind⟩
           failures := failures + TestPack.countFailures dest
         else panic! "invariant violated: dest has wrong size"
       else panic! "invariants violated for mkPackedTests: dest size"
