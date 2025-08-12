@@ -1,6 +1,4 @@
 import Std.Data.HashSet
--- import Batteries.Data.Rat
--- import Mathlib.Data.List.Defs
 import SortingNetworkSearch.LFSR
 import SortingNetworkSearchFFI
 

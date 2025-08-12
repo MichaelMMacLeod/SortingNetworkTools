@@ -1,7 +1,7 @@
 import SortingNetworkSearch
 import SortingNetworkSearch.LFSR
 
-partial def main (args : List String) : IO Unit := do
+def main (args : List String) : IO Unit := do
   -- let n : Network 3 := Network.mk #[.mk #[0, 2, 1], .mk #[0, 2, 1]]
   -- let n := show Network 3 from default
   -- let (n, g, lastFailures) := n.improve (mkStdGen) 50 (.some 1) true
