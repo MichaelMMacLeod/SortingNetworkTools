@@ -164,6 +164,13 @@ partial def CompiledNetwork.runParallel
     else vals
   loop 0 vals
 
+@[grind]
+structure pack.h (size : USize) (src dest : Array UInt64) where
+  size_src_lt_size_USize : src.size < USize.size := by grind
+  -- size_dest_lt_size_USize : dest.size < USize.size := by grind
+  usize_src_eq_64 : src.usize = 64 := by grind
+  usize_dest_eq_size : dest.usize = size := by grind
+
 /--
 Packs the bits of each element of `src` into `dest` like so:
 ```
@@ -190,56 +197,69 @@ dest [0b0000000000000000000000000000000000000000000000001010101010101010,
       0b0000000000000000000000000000000000000000000000001111111100000000]
 ```
 -/
+@[inline]
 partial def pack
-    -- (size : USize)
-    (src dest : Array UInt64)
-    -- (size_src : src.usize = 64)
-    -- (size_dest : dest.usize = size)
-    : Array UInt64 /- result.size = size -/ :=
+    (src : Array UInt64)
+    (dest : Subtype (pack.h size src ·))
+    : Subtype (pack.h size src ·) :=
   let rec loop1
-      (dest : Array UInt64)
+      (dest : Subtype (pack.h size src ·))
       (bitIdx : USize)
-      : Array UInt64 :=
-    if bitIdx < 64 then
+      : Subtype (pack.h size src ·) :=
+    if h : bitIdx < 64 then
       let rec loop2
-          (dest : Array UInt64)
+          (dest : Subtype (pack.h size src ·))
           (testCaseIdx : USize)
-          : Array UInt64 :=
-        if testCaseIdx < src.usize ∧ testCaseIdx < dest.usize then
+          : Subtype (pack.h size src ·) :=
+        if h : testCaseIdx < src.usize ∧ testCaseIdx < dest.val.usize then
           let bitIdx64 := bitIdx.toUInt64
-          let bit := 1 &&& src[bitIdx]! >>> testCaseIdx.toUInt64
-          let dest := dest.set! testCaseIdx.toNat <|
-            (dest[testCaseIdx]! &&& ~~~(1 <<< bitIdx64))
-            ||| (bit <<< bitIdx64)
-          loop2 dest (testCaseIdx + 1)
+          let bit := 1 &&& src.uget bitIdx (by grind) >>> testCaseIdx.toUInt64
+          let dest := dest.val.uset
+            testCaseIdx
+            ((dest.val.uget testCaseIdx (by grind) &&& ~~~(1 <<< bitIdx64))
+              ||| (bit <<< bitIdx64))
+            (by grind)
+          loop2 ⟨dest, by grind⟩ (testCaseIdx + 1)
         else dest
-      let dest := loop2 dest 0
+      let dest := loop2 dest ⟨0, by grind⟩
       loop1 dest (bitIdx + 1)
     else dest
   loop1 dest 0
 
+@[grind]
+structure mkParallelInputChunk.h (size : USize) (src dest : Array UInt64) where
+  size_src_lt_size_USize : src.size < USize.size := by grind
+  usize_src_eq_64 : src.usize = 64 := by grind
+  usize_dest_eq_size : dest.usize = size := by grind
+
 partial def mkParallelInputChunk
     (size : USize)
-    (src dest : Array UInt64)
-    -- (size_src : src.usize = 64)
-    -- (size_dest : dest.usize = size)
+    (dest : Array UInt64)
+    (src : Subtype (mkParallelInputChunk.h size · dest))
     (seed : UInt64)
     : Array UInt64 × UInt64 /- result.fst.usize = size, result.snd is the new seed -/ :=
   let rec loop
       (testCase : USize)
-      (src : Array UInt64)
+      (src : Subtype (mkParallelInputChunk.h size · dest))
       (seed : UInt64)
       : Array UInt64 × UInt64 :=
-    if testCase < 64 then
-      let src := src.set! testCase.toNat seed
+    if h : testCase < 64 then
+      let src := src.val.uset testCase seed (by grind)
       let seed := LFSR.rand64 size.toUInt64 seed
       if seed = 1 then
         (src, seed)
-      else loop (testCase + 1) src seed
+      else loop (testCase + 1) ⟨src, by grind⟩ seed
     else (src, seed)
   let (src, seed) := loop 0 src seed
-  let dest := pack src dest
-  (dest, seed)
+  if h : src.size < USize.size ∧ src.usize = 64 ∧ dest.usize = size then
+    have pack_h : pack.h size src dest := by
+      apply pack.h.mk
+      . exact h.left
+      . exact h.right.left
+      . exact h.right.right
+    let dest := pack src ⟨dest, pack_h⟩
+    (dest, seed)
+  else panic! "invariant violated: pack.h"
 
 /-- Returns the number of `1`s in the binary representation of `u`. -/
 def UInt64.countSetBits (u : UInt64) : UInt64 := Id.run do
@@ -288,14 +308,18 @@ def CompiledNetwork.countTestFailures (c : CompiledNetwork size) : UInt64 := Id.
   let mut dest := Array.replicate size.toNat 0
   let mut failures := 0
   let mut isFirstIteration := true
-  while seed ≠ 1 ∨ isFirstIteration do
-    isFirstIteration := false
-    (dest, seed) := mkParallelInputChunk size src dest seed
-    if h : dest.usize = size ∧ dest.size < USize.size then
-      dest := c.runParallel ⟨dest, by grind⟩
-      failures := failures + ParallelChunk.countNotSorted dest
-    else panic! "invariant violated: dest has wrong size"
-  failures
+  if h : src.size < USize.size ∧ src.usize = 64 then
+    while seed ≠ 1 ∨ isFirstIteration do
+      isFirstIteration := false
+      if h : dest.usize = size then
+        (dest, seed) := mkParallelInputChunk size dest ⟨src, by grind⟩ seed
+        if h : dest.usize = size ∧ dest.size < USize.size then
+          dest := c.runParallel ⟨dest, by grind⟩
+          failures := failures + ParallelChunk.countNotSorted dest
+        else panic! "invariant violated: dest has wrong size"
+      else panic! "invariants violated for mkParallelInputChunk: dest size"
+    failures
+  else panic! "invariants violated for mkParallelInputChunk: src size"
 
 def Network.addLayer (n : Network size) : Network size :=
   Network.mk <| n.toArray.push <| Array.range size.toNat |>.map (·.toUSize)
