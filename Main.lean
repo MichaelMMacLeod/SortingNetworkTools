@@ -22,8 +22,8 @@ def main (args : List String) : IO Unit := do
     i := i + 1
     if !isCorrect ∧ lastFailures = some 0 then
       isCorrect := true
-      bestCEs := n.swapsScore
-      bestLayers := n.layersScore
+      bestCEs := n.toSwaps.size
+      bestLayers := n.toArray.size
       lastImprovementTime ← IO.monoMsNow
       let historicBestCEs' := bestCEs
       let historicBestLayers' := bestLayers
@@ -35,8 +35,8 @@ def main (args : List String) : IO Unit := do
         println! s!"{n.toPursleyString}"
         println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i} with {numRestarts} restarts"
     else if isCorrect then
-      let swaps := n.swapsScore
-      let layers := n.layersScore
+      let swaps := n.toSwaps.size
+      let layers := n.toArray.size
       if swaps < bestCEs ∨ layers < bestLayers then
         bestCEs := swaps
         bestLayers := layers
@@ -59,4 +59,3 @@ def main (args : List String) : IO Unit := do
           numRestarts := numRestarts + 1
           i := 0
           lastImprovementDuration := 0
-          -- println! "Restarting (total {numRestarts})"
