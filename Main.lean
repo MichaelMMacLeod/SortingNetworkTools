@@ -1,5 +1,5 @@
 import SortingNetworkSearch.LFSR
-import SortingNetworkSearch.Basic
+import SortingNetworkSearch.Network
 
 def main (args : List String) : IO Unit := do
   let size := args[0]!.toNat!.toUSize
@@ -23,7 +23,7 @@ def main (args : List String) : IO Unit := do
     if !isCorrect ∧ lastFailures = some 0 then
       isCorrect := true
       bestCEs := n.toSwaps.size
-      bestLayers := n.toArray.size
+      bestLayers := n.layers.size
       lastImprovementTime ← IO.monoMsNow
       let historicBestCEs' := bestCEs
       let historicBestLayers' := bestLayers
@@ -36,7 +36,7 @@ def main (args : List String) : IO Unit := do
         println! s!"Found a size {size} network with {bestCEs} CEs and {bestLayers} layers after iteration {i} with {numRestarts} restarts"
     else if isCorrect then
       let swaps := n.toSwaps.size
-      let layers := n.toArray.size
+      let layers := n.layers.size
       if swaps < bestCEs ∨ layers < bestLayers then
         bestCEs := swaps
         bestLayers := layers

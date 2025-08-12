@@ -1,8 +1,34 @@
 import Std.Data.HashSet
 import Lean
 
+/-
+The zero-one principle states that a sorting network with n channels
+is correct if it correctly sorts all 2^n arrays of zero and one.
+
+For efficiency, instead of sorting arrays of zeros and ones, we sort
+the zeros and ones inside the binary representation of unsigned
+integers. This reduces the problem to checking our network correctly
+sorts the zeros and ones in all 2^n unsigned integers. (we also pack
+these test cases together so we can do 64 of them in parallel using
+bitwise operations, see Pack.lean for how.)
+
+It is advantageous to test these integers in a random order so as to
+more quickly rule out incorrect networks which may succeed on several
+adjacent integers. One way to do this would be to put all 2^n integers
+in an array and then shuffle it. Unfortunately, the memory requirement
+for storing 2^n integers quickly make this strategy infeasible.
+
+Instead, we use a maximal linear feedback shift register (maximal
+LFSR): a pseudorandom number generator which only repeats after it has
+generated every single integer in the range 2^n (except for zero). We
+don't care about zero because its bits (all zero) are already in
+sorted order, so even incorrect networks will 'sort it correctly'.
+
+For more on LFSRs, see https://en.wikipedia.org/wiki/Linear-feedback_shift_register
+-/
+
 -- From https://www.partow.net/programming/polynomials/primitive_polynomials_GF2.txt
--- These are the coefficients of the polynomials, excluding the constant one on the right end.
+-- (excluding the `1` at the end of each of them)
 def coefficients : Array (Array Nat) := #[
   #[2, 1],
   #[3, 1],
@@ -37,18 +63,6 @@ def coefficients : Array (Array Nat) := #[
   #[32, 22, 2, 1],
 ]
 
-def mkLFSR (coefficients : Array Nat) : Nat → Nat :=
-  let numBitsSub1 := coefficients[0]! - 1
-  let trailingCoefficients := coefficients.drop 1
-  fun state =>
-    let bit : Nat :=
-      1 &&&
-      trailingCoefficients.foldl
-       (init := state)
-       fun acc coefficient =>
-         acc ^^^ (state >>> coefficient)
-    state >>> 1 ||| bit <<< numBitsSub1
-
 def mkLFSR64 (coefficients : Array UInt64) : UInt64 → UInt64 :=
   let numBitsSub1 := coefficients[0]! - 1
   let trailingCoefficients := coefficients.drop 1
@@ -61,31 +75,7 @@ def mkLFSR64 (coefficients : Array UInt64) : UInt64 → UInt64 :=
          acc ^^^ (state >>> coefficient)
     state >>> 1 ||| bit <<< numBitsSub1
 
-def LFSRArray : Array (Nat → Nat) := coefficients.map (mkLFSR ·)
 def LFSR64Array : Array (UInt64 → UInt64) := coefficients.map (·.map (·.toUInt64)) |>.map (mkLFSR64 ·)
 
-/--
-Generates a random `Nat` using at most `size` bits and an initial `seed`. If the
-output is fed back in as the seed, eventually every single `Nat` in the range
-`2^size` will be produced (except for `0`).
-- `seed` is a non-zero `Nat` less than `2^size`
--/
-def LFSR.randNat (size : Nat) (seed : Nat) : Nat :=
-  if h : size < 2 ∨ LFSRArray.size ≤ size - 2 then
-    panic! s!"LFSR only implemented for 2..={LFSRArray.size + 1} sizes"
-  else
-    LFSRArray[size - 2] seed
-
-def LFSR.rand64 (size : UInt64) (seed : UInt64) : UInt64 :=
-  LFSR64Array[size.toUSize - 2]! seed
-
-def checkPeriod (f : Nat → Nat) : Nat := Id.run do
-  let start := 1
-  let mut i := f start
-  let mut result : Nat := 1
-  while i ≠ start do
-    i := f i
-    result := result + 1
-    if result % 10000000 = 0 then
-      result := dbgTraceVal result
-  pure result
+def LFSR.rand64 (size : USize) (seed : UInt64) : UInt64 :=
+  LFSR64Array[size - 2]! seed

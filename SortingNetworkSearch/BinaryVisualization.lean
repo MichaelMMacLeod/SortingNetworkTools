@@ -1,11 +1,7 @@
-/-
-# Converting numbers to strings of binary digits
--/
-
 /--
 Converts `n` to an array of bits, with most significant bits coming first.
 
-Example
+Example:
 * 0b100011.toBitArray = #[true, true, false, false, false, true]
 -/
 def Nat.toBitArray (n : Nat) : Array Bool := Id.run do
