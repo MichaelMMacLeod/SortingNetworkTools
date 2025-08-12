@@ -1,11 +1,7 @@
-@[extern "uShr64x8"]
-opaque uShr64x8 : UInt64 → UInt8 → UInt64
+@[extern c inline "#1 >> #2"]
+protected def UInt64.uShiftRight8 (lhs : UInt64) (rhs : UInt8) (h : rhs < 64 := by grind) : UInt64 :=
+  lhs >>> rhs.toUInt64
 
-@[extern "uShl64x8"]
-opaque uShl64x8 : UInt64 → UInt8 → UInt64
-
-instance : HShiftRight UInt64 UInt8 UInt64 where
-  hShiftRight := uShr64x8
-
-instance : HShiftLeft UInt64 UInt8 UInt64 where
-  hShiftLeft := uShl64x8
+@[extern c inline "#1 << #2"]
+protected def UInt64.uShiftLeft8 (lhs : UInt64) (rhs : UInt8) (h : rhs < 64 := by grind) : UInt64 :=
+  lhs <<< rhs.toUInt64

@@ -88,54 +88,110 @@ def Network.fromLayerSwaps (layers : Array (Array (UInt8 × UInt8))) : Network s
           let acc := acc.set! b.toNat a
           acc
 
-def binaryCompareAndSwap (a b : UInt8) (val : UInt64) : UInt64 :=
-  let aBit := val >>> a &&& 1
-  let bBit := val >>> b &&& 1
+@[inline]
+def binaryCompareAndSwap
+    (a : { a : UInt8 // a < 64 })
+    (b : { b : UInt8 // b < 64 })
+    (val : UInt64)
+    : UInt64 :=
+  let aBit := val.uShiftRight8 a &&& 1
+  let bBit := val.uShiftRight8 b &&& 1
   let aBit' := bBit &&& aBit
   let bBit' := bBit ||| aBit
-  let aBit's := aBit' <<< a
-  let bBit's := bBit' <<< b
-  let na := ~~~((1 : UInt64) <<< a)
-  let nb := ~~~((1 : UInt64) <<< b)
+  let aBit's := aBit'.uShiftLeft8 a
+  let bBit's := bBit'.uShiftLeft8 b
+  let na := ~~~((1 : UInt64).uShiftLeft8 a)
+  let nb := ~~~((1 : UInt64).uShiftLeft8 b)
   let val := val &&& na &&& nb
   let val := val ||| aBit's ||| bBit's
   val
+
+instance instMembershipByteArray : Membership UInt8 ByteArray where
+  mem as a := a ∈ as.data
 
 @[grind]
 structure CompiledNetwork where
   as : ByteArray
   bs : ByteArray
-  size_eq : as.size = bs.size
-  size_lt_USize_size : as.size < USize.size
+  size_eq : as.size = bs.size := by grind
+  size_lt_USize_size : as.size < USize.size := by grind
+  as_all_lt_64 : ∀ a ∈ as, a < 64 := by grind
+  bs_all_lt_64 : ∀ b ∈ bs, b < 64 := by grind
 
 attribute [grind →] ByteArray.size
 attribute [grind =] ByteArray.empty ByteArray.emptyWithCapacity
 attribute [grind] USize.size_pos
 
+theorem idk3
+    : ∀ a ∈ ByteArray.empty, a < 64 := by
+  unfold instMembershipByteArray
+  grind
+
 theorem ByteArray.size_empty : empty.size = 0 := by
   grind
+
+@[grind =]
+theorem ByteArray.toList_empty : empty.toList = [] := by
+  simp only [toList, empty, emptyWithCapacity]
+  rw [toList.loop]
+  simp [ByteArray.size]
 
 theorem ByteArray.size_empty_lt_Usize_size : empty.size < USize.size := by
   simp [ByteArray.size_empty, USize.size_pos]
 
 grind_pattern ByteArray.size_empty_lt_Usize_size => ByteArray.empty.size, USize.size
 
+instance : Inhabited CompiledNetwork where
+  default :=
+    have h_as : ∀ a ∈ ByteArray.empty, a < 64 := idk3
+    have h_bs : ∀ b ∈ ByteArray.empty, b < 64 := idk3
+    CompiledNetwork.mk .empty .empty
+
+theorem idk1
+    (xs : Array (UInt8 × UInt8))
+    (h : as = ByteArray.mk xs.unzip.fst)
+    (h : as.data.all (· < 64))
+    : ∀ a ∈ as, a < 64 := by
+  unfold instMembershipByteArray
+  grind
+
+theorem idk2
+    (xs : Array (UInt8 × UInt8))
+    (h : bs = ByteArray.mk xs.unzip.snd)
+    (h : bs.data.all (· < 64))
+    : ∀ b ∈ bs, b < 64 := by
+  unfold instMembershipByteArray
+  grind
+
 def Network.compile (n : Network size) : CompiledNetwork :=
   let swaps := n.toSwaps |>.unzip
-  if h : swaps.fst.size = swaps.snd.size ∧ swaps.fst.size < USize.size then by
-    refine CompiledNetwork.mk (.mk swaps.fst) (.mk swaps.snd) (by grind) (by grind)
-  else by
-    refine CompiledNetwork.mk .empty .empty (by grind) (by grind)
+  if h : swaps.fst.size = swaps.snd.size ∧ swaps.fst.size < USize.size then
+    let as := ByteArray.mk swaps.fst
+    let bs := ByteArray.mk swaps.snd
+    if h : as.data.all (· < 64) ∧ bs.data.all (· < 64) then
+      have h_as : ∀ a ∈ as, a < 64 := by exact idk1 n.toSwaps rfl h.left
+      have h_bs : ∀ b ∈ bs, b < 64 := by exact idk2 n.toSwaps rfl h.right
+      CompiledNetwork.mk as bs (by grind) (by grind) h_as h_bs
+    else panic! "invariant #1"
+  else panic! "invariant #2"
 
-def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 := Id.run do
-  let mut input := input
-  let mut i : USize := 0
-  while h : i < n.as.usize do
-    let a := n.as.uget i (by grind)
-    let b := n.bs.uget i (by grind)
-    input := binaryCompareAndSwap b a input
-    i := i + 1
-  input
+@[inline]
+partial def CompiledNetwork.run (n : CompiledNetwork) (input : UInt64) : UInt64 :=
+  let rec loop (i : USize) (input : UInt64) : UInt64 :=
+    if h : i < n.as.usize then
+      have i_lt_as_size : i.toNat < n.as.size := by grind
+      have i_lt_bs_size : i.toNat < n.bs.size := by grind
+      let a := n.as.uget i i_lt_as_size
+      let b := n.bs.uget i i_lt_bs_size
+      have a_lt : a < 64 := by
+        have : a ∈ n.as := Array.mem_of_getElem rfl
+        exact n.as_all_lt_64 a this
+      have b_lt : b < 64 := by
+        have : b ∈ n.bs := Array.mem_of_getElem rfl
+        exact n.bs_all_lt_64 b this
+      loop (i + 1) (binaryCompareAndSwap ⟨b, b_lt⟩ ⟨a, a_lt⟩ input)
+    else input
+  loop 0 input
 
 @[inline]
 def UInt64.bitsSorted (n : UInt64) : Bool :=
@@ -155,7 +211,27 @@ def Network.output (n : Network size) : Std.HashSet UInt64 := Id.run do
     result := result.insert output
   result
 
-def Network.correctnessScore (n : Network size) : Nat × Nat := Id.run do
+partial def Network.correctnessScore (n : Network size) : Nat × Nat :=
+  let size : UInt64 := size.toUInt64
+  let n := n.compile
+  let rec loop
+      (i : UInt64)
+      (successes : Nat)
+      (failures : Nat)
+      : Nat × Nat :=
+    let (successes, failures) :=
+      if n.correctlySortsInput i then
+        (successes + 1, failures)
+      else
+        (successes, failures + 1)
+    let i := LFSR.rand64 size i
+    if i = 1 then
+      (successes, failures)
+    else
+      loop i successes failures
+  loop 1 0 0
+
+def Network.correctnessScore' (n : Network size) : Nat × Nat := Id.run do
   let mut successes := 0
   let mut failures := 0
   let mut start : UInt64 := 1
