@@ -1,14 +1,10 @@
-import SortingNetworkSearch
 import SortingNetworkSearch.LFSR
+import SortingNetworkSearch.Basic
 
 def main (args : List String) : IO Unit := do
-  -- let n : Network 3 := Network.mk #[.mk #[0, 2, 1], .mk #[0, 2, 1]]
-  -- let n := show Network 3 from default
-  -- let (n, g, lastFailures) := n.improve (mkStdGen) 50 (.some 1) true
-  -- println! "{n.toArray} {lastFailures}"
-  let size := args[0]!.toNat!.toUInt8
+  let size := args[0]!.toNat!.toUSize
   let symmetric := args[1]! = "true"
-  let mut lastFailures : Option Nat := .some 1
+  let mut lastFailures : Option UInt64 := .some 1
   let mut n : Network size := default
   let mut g := mkStdGen (← IO.rand 0 USize.size)
   let mut i := 1
