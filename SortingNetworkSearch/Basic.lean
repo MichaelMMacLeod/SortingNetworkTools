@@ -309,33 +309,28 @@ partial def pack
 --   unfold pack
 
 
-def mkParallelInputChunk
+partial def mkParallelInputChunk
     (size : USize)
     (src dest : Array UInt64)
     -- (size_src : src.usize = 64)
     -- (size_dest : dest.usize = size)
     (seed : UInt64)
-    : Array UInt64 × UInt64 /- result.fst.usize = size, result.snd is the new seed -/
-    := Id.run do
-  let mut src := src
-  let mut seed := seed
-  for testCase in [0:64] do
-    let nextSeed := LFSR.rand64 size.toUInt64 seed
-    src := src.set! testCase seed
-    seed := nextSeed
-    if seed = 1 then
-      break
+    : Array UInt64 × UInt64 /- result.fst.usize = size, result.snd is the new seed -/ :=
+  let rec loop
+      (testCase : USize)
+      (src : Array UInt64)
+      (seed : UInt64)
+      : Array UInt64 × UInt64 :=
+    if testCase < 64 then
+      let src := src.set! testCase.toNat seed
+      let seed := LFSR.rand64 size.toUInt64 seed
+      if seed = 1 then
+        (src, seed)
+      else loop (testCase + 1) src seed
+    else (src, seed)
+  let (src, seed) := loop 0 src seed
   let dest := pack src dest
   (dest, seed)
-
--- def pic1xSeed := mkParallelInputChunk 4 (Array.replicate 64 0) (Array.replicate 4 0) 1
--- def pic1 := pic1xSeed.fst
--- def myNw := CompiledNetwork.mk (size := 4) #[0, 1, 0, 2, 1] #[2, 3, 1, 3, 2] sorry sorry sorry sorry
--- def pic1Output := myNw.runParallel ⟨pic1, sorry⟩
--- #eval! IO.println <| pic1 |>.map (·.toBitString)
--- #eval! IO.println <| pic1Output |>.map (·.toBitString)
-
--- def UInt64.MAX : UInt64 := ~~~0
 
 /-- Returns the number of `1`s in the binary representation of `u`. -/
 def UInt64.countSetBits (u : UInt64) : UInt64 := Id.run do
