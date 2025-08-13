@@ -9,11 +9,45 @@ namespace SVG
 
 abbrev Tags := Std.HashMap String String
 
+@[grind]
 structure Node where
   name : String
   tags : Tags
   children : Array Node
   deriving Inhabited, Repr
+
+mutual
+@[grind]
+def Node.size : Node → Nat
+  | { children, .. } => 1 + Node.sizeAux children
+@[grind]
+def Node.sizeAux (xs : Array Node) : Nat :=
+  xs.map (·.size) |>.sum
+end
+
+mutual
+@[grind]
+theorem Node.size_lt (n : Node) {i : Nat} {h} {c : Node}
+    : c = n.children[i] → c.size < n.size := by
+  sorry
+-- theorem Node.sizeAux_lt (xs : Array Node) :
+--    c = xs[i] → c.size < xs.map (·.size) |>.sum := by
+end
+
+-- theorem Node.size_children_lt (n : Node) {i : Nat} {h} {c : Node}
+--     : c = n.children[i] → c.size < n.size := by
+--   intro c_eq
+--   induction h : n.size with
+--   | zero => grind
+--   | succ n' ih =>
+--     unfold size
+--     split
+--     rename_i children tags name
+--     unfold sizeAux
+--     grind
+--     -- simp [*]
+
+--     -- grind
 
 def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
   let mut result := ""
@@ -22,54 +56,18 @@ def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
   result := result.dropRight 1
   result
 
+@[grind]
 structure NodeF α where
   name : String
   tags : Tags
   children : Array α
   deriving Inhabited, Repr
 
-#check Nat ⊕ Bool
+@[grind]
+def NodeF.size {α} (_n : NodeF α) := 0
 
 abbrev Stack α := Array ((Nat × Node) ⊕ (Nat × NodeF α))
 abbrev Acc α := Array (Array α)
-
-partial def Node.cata [Inhabited α] (n : Node) (f : NodeF α → α) : α :=
-  let rec loop
-      (stack : Stack α)
-      (acc : Acc α)
-      (isFirstIteration : Bool)
-      : Stack α × Acc α :=
-    if h : 1 < stack.size ∨ (stack.size = 1 ∧ isFirstIteration) then
-      let n := stack[stack.size - 1]
-      let stack := stack.pop
-      match n with
-      | Sum.inl (i, n) =>
-        let stack := stack.push <| Sum.inr (i, { n with children := #[] })
-        let nIndex := stack.size - 1
-        let rec loop2
-            (stack : Stack α)
-            (acc : Acc α)
-            (children : Array Node)
-            : Stack α × Acc α :=
-          if h : 0 < children.size then
-            let acc := acc.push #[]
-            let stack := stack.push <| Sum.inl (nIndex, children[children.size - 1])
-            let children := children.pop
-            loop2 stack acc children
-          else (stack, acc)
-        let (stack, acc) := loop2 stack acc n.children
-        loop stack acc false
-      | Sum.inr (i, n) =>
-        let as := acc[acc.size - 1]!
-        let acc := acc.pop
-        let a := f { n with children := as }
-        let acc := acc.set! i (acc[i]!.push a)
-        loop stack acc false
-    else (stack, acc)
-  let (stack, acc) := loop #[Sum.inl (0, n)] #[.emptyWithCapacity n.children.size] true
-  match stack[0]? with
-  | none | some (Sum.inl _) => panic! ""
-  | some (Sum.inr (i, n)) => f { n with children := acc[0]?.get! }
 
 def Node.cata' [Inhabited α] (n : Node) (f : NodeF α → α) : α := Id.run do
   let mut stack : Array ((Nat × Node) ⊕ (Nat × NodeF α)) := #[Sum.inl (0, n)]
@@ -98,7 +96,53 @@ def Node.cata' [Inhabited α] (n : Node) (f : NodeF α → α) : α := Id.run do
   | none | some (Sum.inl _) => panic! ""
   | some (Sum.inr (i, n)) => f { n with children := acc[0]?.get! }
 
-#check String.append
+
+def Node.cata (n : Node) (f : NodeF α → α) : α :=
+  let rec loop
+      (acc : Acc α)
+      (stack : { s : Stack α // 0 < s.size ∧ s.size = acc.size } )
+      (fuel : Nat)
+      (orig_node : Node := n)
+      : α :=
+    let n := stack.val[stack.val.size - 1]
+    let stack := stack.val.pop
+    match n with
+    | Sum.inl (i, n) =>
+      let stack' := stack.push <| Sum.inr (i, { n with children := #[] })
+      let nIndex := stack'.size - 1
+      let rec loop2
+          (acc : Acc α)
+          (stack : { s : Stack α // 0 < s.size ∧ s.size = acc.size } )
+          (children : Array Node)
+          : { s : Stack α × Acc α // 0 < s.fst.size ∧ s.fst.size = s.snd.size } :=
+        if h : 0 < children.size then
+          let acc := acc.push #[]
+          let stack := stack.val.push <| Sum.inl (nIndex, children[children.size - 1])
+          let children := children.pop
+          loop2 acc ⟨stack, by grind⟩ children
+        else ⟨(stack, acc), by grind⟩
+      let ⟨(stack'', acc'), p⟩ := loop2 acc ⟨stack', by grind⟩ n.children
+      loop acc' ⟨stack'', by grind⟩ (fuel + 1) orig_node
+    | Sum.inr (i, n) =>
+      let as := acc[acc.size - 1]
+      let acc := acc.pop
+      let a := f { n with children := as }
+      if h : i < acc.size then /- equivalently, 0 < acc.size -/
+        let acc := acc.set i (acc[i].push a)
+        loop acc ⟨stack, by grind⟩ (fuel + 1) orig_node
+      else a
+  termination_by orig_node.size - fuel
+  decreasing_by
+    simp_wf
+    
+    grind
+  loop #[.emptyWithCapacity n.children.size] ⟨#[Sum.inl (0, n)], by grind⟩ 0
+
+
+  -- let (stack, acc) :=
+  -- match stack[0]? with
+  -- | none | some (Sum.inl _) => panic! ""
+  -- | some (Sum.inr (i, n)) => f { n with children := acc[0]?.get! }
 
 def Node.toString (n : Node) : String :=
   let f : Nat → String := n.cata fun { name, tags, children } indentLevel => Id.run do
@@ -112,7 +156,7 @@ def Node.toString (n : Node) : String :=
     s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
   f 0
 
-#eval println! Node.toString {
+#eval println! Node.depth {
   name := "svg",
   tags := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
   children := #[
