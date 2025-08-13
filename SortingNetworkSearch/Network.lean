@@ -251,3 +251,4 @@ def Network.toPursleyString (n : Network size) : String :=
     fun str (a, b) => str ++ s!"{a}:{b},"
   let result := result.dropRight 1 -- remove the trailing comma
   result
+

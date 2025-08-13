@@ -4,6 +4,72 @@ def Network.fromSwapLayersList (layers : List (List Swap)) : Network size :=
   let layers := layers.map (·.toArray) |>.toArray
   .fromSwapLayers layers
 
+def Layers.fromSwaps (size : Nat) (swaps : Array Swap) : Array Layer := Id.run do
+  let mut result := #[]
+  let mut layer := Array.range size |>.map (·.toUSize)
+  let mut occupied := Array.replicate size false
+  let mut i := 0
+  while h : i < swaps.size do
+    let (a, b) := swaps[i]
+    if occupied[a]! ∨ occupied[b]! then
+      result := result.push layer
+      layer := Array.range size |>.map (·.toUSize)
+      occupied := Array.replicate size false
+    else
+      layer := layer.set! a.toNat b
+      layer := layer.set! b.toNat a
+      occupied := occupied.set! a.toNat true
+      occupied := occupied.set! b.toNat true
+      i := i + 1
+      if i = swaps.size then
+        result := result.push layer
+  result
+
+/--
+Returns a `Network` implementing Batcher odd-even mergesort.
+Reference: https://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort
+-/
+def Network.Algorithm.batcherOddEven : Network size := Id.run do
+  let mut swaps : Array Swap := #[]
+  let n := size.toNat
+  let mut p := 1
+  while p < n do
+    let mut k := p
+    while k ≥ 1 do
+      let mut j := k%p
+      while j ≤ n-1-k do
+        let mut i := 0
+        while i ≤ min (k-1) (n-j-k-1) do
+          if (i+j) / (p*2) = (i+j+k) / (p*2) then
+            let a := j+i
+            let b := j+i+k
+            swaps := swaps.push (a.toUSize, b.toUSize)
+          i := i+1
+        j := j+2*k
+      k := k/2
+    p := p+p
+  Network.mk <| Layers.fromSwaps size.toNat swaps
+
+/--
+Returns a `Network` implementing Bubble sort.
+Reference: https://en.wikipedia.org/wiki/Bubble_sort.
+-/
+def Network.Algorithm.bubble : Network size :=
+  if size ≤ 1 then default else .mk <| ascending ++ (ascending.pop |>.reverse)
+where
+  numAscending := (2 * (size - 2) + 1) / 2 + 1
+  ascending := .ofFn (n := numAscending.toNat) fun i => Id.run do
+    let mut arr := Array.range size.toNat |>.map (·.toUSize)
+    let i := i.toNat
+    let numSwaps := i / 2 + 1
+    for j in [0 : numSwaps] do
+      let a := j * 2 + if i % 2 = 0 then 0 else 1
+      arr :=
+        if arr.size < USize.size then
+          arr.swapIfInBounds a (a + 1)
+        else arr
+    arr
+
 -- Definitions of some of the best known sorting networks
 -- See https://bertdobbelaere.github.io/sorting_networks.html
 
@@ -39,22 +105,3 @@ def goodNetworks : Array (Σ size : USize, Network size) :=
     ⟨14, nw14_52x9⟩,
     ⟨15, nw15_56x10⟩,
   ]
-
-/--
-Returns a bubble sort sorting network (see https://en.wikipedia.org/wiki/Bubble_sort).
--/
-def Network.bubble : Network size :=
-  if size ≤ 1 then default else .mk <| ascending ++ (ascending.pop |>.reverse)
-where
-  numAscending := (2 * (size - 2) + 1) / 2 + 1
-  ascending := .ofFn (n := numAscending.toNat) fun i => Id.run do
-    let mut arr := Array.range size.toNat |>.map (·.toUSize)
-    let i := i.toNat
-    let numSwaps := i / 2 + 1
-    for j in [0 : numSwaps] do
-      let a := j * 2 + if i % 2 = 0 then 0 else 1
-      arr :=
-        if arr.size < USize.size then
-          arr.swapIfInBounds a (a + 1)
-        else arr
-    arr
