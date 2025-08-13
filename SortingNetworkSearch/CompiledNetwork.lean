@@ -2,6 +2,9 @@ import SortingNetworkSearch.ExtraTheorems
 import SortingNetworkSearch.Layer
 import SortingNetworkSearch.TestPack
 
+/--
+A sorting network that can be efficiently tested for correctness
+-/
 @[grind]
 structure CompiledNetwork (size : USize) where
   swaps : Array Swap
@@ -14,29 +17,12 @@ instance {size : USize} : Inhabited (CompiledNetwork size) where
     rw [Array.size_empty]
     exact USize.size_pos
 
-@[grind]
-structure binaryParallelCompareAndSwap.h (vals : Array UInt64) (a b : USize) where
-  size_vals_lt : vals.size < USize.size := by grind
-  a_lt_vals_usize : a < vals.usize := by grind
-  b_lt_vals_usize : b < vals.usize := by grind
-
-def binaryParallelCompareAndSwap
-    (a b : USize)
-    (vals : Subtype (binaryParallelCompareAndSwap.h · a b) )
-    : Array UInt64 :=
-  have : a.toNat < vals.val.size := by grind
-  have : b.toNat < vals.val.size := by grind
-  let tmp := vals.val[a]
-  let vals := vals.val.uset a (tmp &&& vals.val[b]) (by grind)
-  let vals := vals.uset b (tmp ||| vals[b]'(by grind)) (by grind)
-  vals
-
 @[grind =]
-theorem binaryParallelCompareAndSwap_size_eq
+theorem TestPack.compareAndSwap_size_eq
     (a b : USize)
-    (vals : Subtype (binaryParallelCompareAndSwap.h · a b))
-    : (binaryParallelCompareAndSwap a b vals).size = vals.val.size := by
-  simp [binaryParallelCompareAndSwap]
+    (vals : Subtype (compareAndSwap.h · a b))
+    : (TestPack.compareAndSwap a b vals).size = vals.val.size := by
+  simp [TestPack.compareAndSwap]
 
 @[grind]
 structure CompiledNetwork.runTestPack.h (n : CompiledNetwork size) (testPack : Array UInt64) where
@@ -57,15 +43,13 @@ partial def CompiledNetwork.runTestPack
       let b := swap.snd
       have testPack_property := testPack.property
       let testPack := ⟨testPack, by grind⟩
-      let testPack' := binaryParallelCompareAndSwap a b testPack
-      have size_eq := binaryParallelCompareAndSwap_size_eq a b testPack
+      let testPack' := TestPack.compareAndSwap a b testPack
+      have size_eq := TestPack.compareAndSwap_size_eq a b testPack
       have runParallel_h : runTestPack.h n testPack' := by
         apply runTestPack.h.mk
-        . rw [binaryParallelCompareAndSwap_size_eq]
-          exact testPack_property.size_vals_lt_size_USize
-        . simp_wf
-          rw [binaryParallelCompareAndSwap_size_eq]
-          intro a b
+        all_goals simp_wf <;> rw [TestPack.compareAndSwap_size_eq]
+        . exact testPack_property.size_vals_lt_size_USize
+        . intro a b
           exact testPack_property.swaps_lt_testPack_usize (a, b)
       loop (i + 1) ⟨testPack', by grind⟩
     else testPack

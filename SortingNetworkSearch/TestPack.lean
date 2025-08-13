@@ -87,7 +87,7 @@ partial def TestPack.mkRandom
       : Array UInt64 × UInt64 :=
     if h : testCase < 64 then
       let src := src.val.uset testCase seed (by grind)
-      let seed := LFSR.rand64 size seed
+      let seed := LFSR.rand size seed
       if seed = 1 then
         (src, seed)
       else loop (testCase + 1) ⟨src, by grind⟩ seed
@@ -97,6 +97,40 @@ partial def TestPack.mkRandom
     let dest := pack src ⟨dest, show pack.h size src dest by grind⟩
     (dest, seed)
   else panic! "invariant violated: pack.h"
+
+@[grind]
+structure TestPack.compareAndSwap.h (vals : Array UInt64) (a b : USize) where
+  size_vals_lt : vals.size < USize.size := by grind
+  a_lt_vals_usize : a < vals.usize := by grind
+  b_lt_vals_usize : b < vals.usize := by grind
+
+/--
+Performs `64` compare-and-swap operations between channels `a` and `b` in parallel.
+```
+           ╭──────────── 64 tests (only using 16) ────────────────────────╮
+input:  [0b0000000000000000000000000000000000000000000000001010101010101010, channel 0
+         0b0000000000000000000000000000000000000000000000001100110011001100, channel 1
+         0b0000000000000000000000000000000000000000000000001111000011110000, channel 2
+         0b0000000000000000000000000000000000000000000000001111111100000000] channel 3
+
+... compare-and-swap channels 0 and 1 of all 64 tests ...
+
+output: [0b0000000000000000000000000000000000000000000000001000100010001000, channel 0
+         0b0000000000000000000000000000000000000000000000001110111011101110, channel 1
+         0b0000000000000000000000000000000000000000000000001111000011110000, channel 2
+         0b0000000000000000000000000000000000000000000000001111111100000000] channel 3
+```
+-/
+def TestPack.compareAndSwap
+    (a b : USize)
+    (testPack : Subtype (compareAndSwap.h · a b) )
+    : Array UInt64 :=
+  have : a.toNat < testPack.val.size := by grind
+  have : b.toNat < testPack.val.size := by grind
+  let tmp := testPack.val[a]
+  let testPack := testPack.val.uset a (tmp &&& testPack.val[b]) (by grind)
+  let testPack := testPack.uset b (tmp ||| testPack[b]'(by grind)) (by grind)
+  testPack
 
 /-- Returns the number of tests in `testPack` that are not in sorted order. -/
 partial def TestPack.countFailures (testPack : Array UInt64) : UInt64 :=

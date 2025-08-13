@@ -10,7 +10,7 @@ the zeros and ones inside the binary representation of unsigned
 integers. This reduces the problem to checking our network correctly
 sorts the zeros and ones in all 2^n unsigned integers. (we also pack
 these test cases together so we can do 64 of them in parallel using
-bitwise operations, see Pack.lean for how.)
+bitwise operations, see TestPack.lean for how.)
 
 It is advantageous to test these integers in a random order so as to
 more quickly rule out incorrect networks which may succeed on several
@@ -63,7 +63,7 @@ def coefficients : Array (Array Nat) := #[
   #[32, 22, 2, 1],
 ]
 
-def mkLFSR64 (coefficients : Array UInt64) : UInt64 → UInt64 :=
+def mkLFSR (coefficients : Array UInt64) : UInt64 → UInt64 :=
   let numBitsSub1 := coefficients[0]! - 1
   let trailingCoefficients := coefficients.drop 1
   fun state =>
@@ -75,7 +75,7 @@ def mkLFSR64 (coefficients : Array UInt64) : UInt64 → UInt64 :=
          acc ^^^ (state >>> coefficient)
     state >>> 1 ||| bit <<< numBitsSub1
 
-def LFSR64Array : Array (UInt64 → UInt64) := coefficients.map (·.map (·.toUInt64)) |>.map (mkLFSR64 ·)
+def LFSRArray : Array (UInt64 → UInt64) := coefficients.map (·.map (·.toUInt64)) |>.map (mkLFSR ·)
 
-def LFSR.rand64 (size : USize) (seed : UInt64) : UInt64 :=
-  LFSR64Array[size - 2]! seed
+def LFSR.rand (size : USize) (seed : UInt64) : UInt64 :=
+  LFSRArray[size - 2]! seed
