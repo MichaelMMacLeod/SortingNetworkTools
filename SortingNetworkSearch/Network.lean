@@ -1,7 +1,6 @@
 import Std.Data.HashSet
 import SortingNetworkSearch.LFSR
 import SortingNetworkSearch.CompiledNetwork
-import SortingNetworkSearch.TestPack
 import SortingNetworkSearch.ExtraTheorems
 import SortingNetworkSearch.Layer
 import SortingNetworkSearch.ArrayExtras
@@ -35,25 +34,6 @@ def Network.compile (n : Network size) : CompiledNetwork size :=
       CompiledNetwork.mk swaps
     else panic! "invariant violated: not all swaps are < size"
   else panic! "invariant violated: swaps has wrong size"
-
-def CompiledNetwork.countTestFailures (c : CompiledNetwork size) : UInt64 := Id.run do
-  let mut seed := 1
-  let mut src := Array.replicate 64 0
-  let mut dest := Array.replicate size.toNat 0
-  let mut failures := 0
-  let mut isFirstIteration := true
-  if h : src.size < USize.size ∧ src.usize = 64 then
-    while seed ≠ 1 ∨ isFirstIteration do
-      isFirstIteration := false
-      if h : dest.usize = size then
-        (dest, seed) := TestPack.mkRandom size dest ⟨src, by grind⟩ seed
-        if h : dest.usize = size ∧ dest.size < USize.size then
-          dest := c.runTestPack ⟨dest, by grind⟩
-          failures := failures + TestPack.countFailures dest
-        else panic! "invariant violated: dest has wrong size"
-      else panic! "invariants violated for mkPackedTests: dest size"
-    failures
-  else panic! "invariants violated for mkPackedTests: src size"
 
 def Network.addLayer (n : Network size) : Network size :=
   Network.mk <| n.layers.push <| Array.range size.toNat |>.map (·.toUSize)
