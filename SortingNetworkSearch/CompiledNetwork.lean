@@ -73,3 +73,37 @@ def CompiledNetwork.countTestFailures (c : CompiledNetwork size) : UInt64 := Id.
       else panic! "invariants violated for mkPackedTests: dest size"
     failures
   else panic! "invariants violated for mkPackedTests: src size"
+
+partial def CompiledNetwork.sortAux
+    [Min α]
+    [Max α]
+    (c : CompiledNetwork size)
+    (arr : { a : Array α // a.size < USize.size ∧ a.size = size.toNat })
+    : Array α :=
+  let rec loop
+      (i : USize)
+      (arr : { a : Array α // a.size < USize.size ∧ a.size = size.toNat })
+      : Array α :=
+    if h : i < c.swaps.usize then
+      let swap := c.swaps.uget i (by grind)
+      let a := min swap.fst swap.snd
+      let b := max swap.fst swap.snd
+      if h : a < arr.val.usize ∧ b < arr.val.usize then
+        let av := arr.val.uget a (by grind)
+        let bv := arr.val.uget b (by grind)
+        let arr := arr.val.set! a.toNat (min av bv)
+        let arr := arr.set! b.toNat (max av bv)
+        loop (i + 1) ⟨arr, by grind⟩
+      else panic! "invariant violated"
+    else arr
+  loop 0 arr
+
+def CompiledNetwork.sort
+    [Min α]
+    [Max α]
+    (c : CompiledNetwork size)
+    (arr : Array α)
+    : Array α :=
+  if h : arr.size < USize.size ∧ arr.size = size.toNat then
+    CompiledNetwork.sortAux c ⟨arr, by grind⟩
+  else panic! "array has wrong size"
