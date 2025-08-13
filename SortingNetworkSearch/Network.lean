@@ -29,12 +29,10 @@ def Network.fromSwapLayers (layers : Array (Array Swap)) : Network size :=
           acc
 
 def Network.compile (n : Network size) : CompiledNetwork size :=
-  let swaps := n.toSwaps |>.unzip
-  if h : swaps.fst.size = swaps.snd.size ∧ swaps.fst.size < USize.size then
-    let as := swaps.fst
-    let bs := swaps.snd
-    if h : as.all (· < size) ∧ bs.all (· < size) then
-      CompiledNetwork.mk as bs
+  let swaps := n.toSwaps
+  if h : swaps.size < USize.size then
+    if h : swaps.all fun (a, b) => a < size ∧ b < size then
+      CompiledNetwork.mk swaps
     else panic! "invariant violated: not all swaps are < size"
   else panic! "invariant violated: swaps has wrong size"
 
