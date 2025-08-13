@@ -8,7 +8,7 @@ structure CompiledNetwork (size : USize) where
   size_lt_USize_size : swaps.size < USize.size := by grind
   swaps_sizes : ∀ s ∈ swaps, s.fst < size ∧ s.snd < size := by grind
 
-instance { size : USize } : Inhabited (CompiledNetwork size) where
+instance {size : USize} : Inhabited (CompiledNetwork size) where
   default := by
     refine CompiledNetwork.mk #[] (size_lt_USize_size := ?_)
     rw [Array.size_empty]
