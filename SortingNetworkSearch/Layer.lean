@@ -1,5 +1,6 @@
 abbrev Layer := Array USize
 abbrev Swap := USize × USize
+abbrev SwapLayer := Array Swap
 
 def Layer.toSwapLayer (layer : Array USize) : Array Swap :=
   Prod.fst <| layer.foldl
