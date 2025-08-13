@@ -30,7 +30,48 @@ structure NodeF α where
 
 #check Nat ⊕ Bool
 
-def Node.cata [Inhabited α] (n : Node) (f : NodeF α → α) : α := Id.run do
+abbrev Stack α := Array ((Nat × Node) ⊕ (Nat × NodeF α))
+abbrev Acc α := Array (Array α)
+
+partial def Node.cata [Inhabited α] (n : Node) (f : NodeF α → α) : α :=
+  let rec loop
+      (stack : Stack α)
+      (acc : Acc α)
+      (isFirstIteration : Bool)
+      : Stack α × Acc α :=
+    if h : 1 < stack.size ∨ (stack.size = 1 ∧ isFirstIteration) then
+      let n := stack[stack.size - 1]
+      let stack := stack.pop
+      match n with
+      | Sum.inl (i, n) =>
+        let stack := stack.push <| Sum.inr (i, { n with children := #[] })
+        let nIndex := stack.size - 1
+        let rec loop2
+            (stack : Stack α)
+            (acc : Acc α)
+            (children : Array Node)
+            : Stack α × Acc α :=
+          if h : 0 < children.size then
+            let acc := acc.push #[]
+            let stack := stack.push <| Sum.inl (nIndex, children[children.size - 1])
+            let children := children.pop
+            loop2 stack acc children
+          else (stack, acc)
+        let (stack, acc) := loop2 stack acc n.children
+        loop stack acc false
+      | Sum.inr (i, n) =>
+        let as := acc[acc.size - 1]!
+        let acc := acc.pop
+        let a := f { n with children := as }
+        let acc := acc.set! i (acc[i]!.push a)
+        loop stack acc false
+    else (stack, acc)
+  let (stack, acc) := loop #[Sum.inl (0, n)] #[.emptyWithCapacity n.children.size] true
+  match stack[0]? with
+  | none | some (Sum.inl _) => panic! ""
+  | some (Sum.inr (i, n)) => f { n with children := acc[0]?.get! }
+
+def Node.cata' [Inhabited α] (n : Node) (f : NodeF α → α) : α := Id.run do
   let mut stack : Array ((Nat × Node) ⊕ (Nat × NodeF α)) := #[Sum.inl (0, n)]
   let mut acc : Array (Array α) := #[.emptyWithCapacity n.children.size]
   let mut isFirstIteration := true
