@@ -5,8 +5,7 @@ import Std.Data.HashMap
 
 open Lean Widget
 
-
-inductive ListF (α : Type) (β : Type)
+inductive ListF (α : Type u) (β : Type v)
   | nil : ListF α β
   | cons : α → β → ListF α β
 
@@ -29,6 +28,108 @@ class Base (α : Type u) where
 
 class Recursive t [Base t] [f : Functor (Base.base t)] where
   project : t → Base.base t t
+
+partial def cata [Inhabited α] [Base t] [Functor (Base.base t)] [Recursive t]
+    (f : Base.base t α → α) (n : t) : α :=
+  f (Functor.map (cata f) (Recursive.project n))
+
+inductive TailRec : Type u → Type (u+1) where
+  | ret : α → TailRec α
+  | suspend : (Unit → TailRec α) → TailRec α
+  | flatMap : TailRec α → (α → TailRec β) → TailRec β
+  deriving Nonempty
+
+def TailRec.map (f : α → β) (t : TailRec α) : TailRec β :=
+  match t with
+  | .ret a => .ret <| f a
+  | .suspend g => .suspend <| fun _ => map f (g ())
+  | .flatMap t g => .flatMap t <| fun a => map f (g a)
+
+instance : Functor TailRec where
+  map := .map
+
+partial def TailRec.run [Nonempty α] : TailRec α → α
+  | .ret a => a
+  | .suspend f => (f ()).run
+  | .flatMap x f =>
+    match x with
+    | .ret a => (f a).run
+    | .suspend r => (TailRec.flatMap (r ()) f).run
+    | .flatMap y g => (y.flatMap (fun q => .flatMap (g q) f)).run
+
+instance instBaseList : Base (List α) where
+  base := ListF α
+
+instance instFunctorListF: Functor (ListF α) where
+  map := ListF.fmap
+
+instance instFunctorBaseList : Functor (Base.base (List α)) where
+  map := ListF.fmap
+
+instance instRecursiveList : Recursive (List α) where
+  project := List.project
+
+partial def List.cataTR [Inhabited β]
+    (f : ListF α β → β) (n : List α) : β :=
+  let x1 : ListF α (List α) := n.project
+  let g1 : List α → β := cataTR f
+  let x2 : ListF α β := g1 <$> x1
+  let x3 : β := f x2
+  x3
+
+partial def List.cataTR' {α β : Type} [Nonempty β]
+    (f : ListF α β → β) (n : List α) : β := cataTR'Aux f n |>.run
+where
+  cataTR'Aux [Nonempty β] (f : ListF α β → β) (n : List α) : TailRec β :=
+    let x1 : ListF α (List α) := n.project
+    .flatMap
+      (.suspend fun _ =>
+        let g1 : List α → TailRec β := cataTR'Aux f
+        let x1 : ListF α (List α) := x1
+        let x9 : TailRec (ListF α β) :=
+          match x1 with
+          | .nil => .ret .nil
+          | .cons a b => .flatMap (g1 b) (fun b => .ret (.cons a b))
+        x9)
+      (fun (x2 : ListF α β) => .ret (f x2))
+
+        -- let x2 : ListF α (TailRec β) := g1 <$> x1
+
+
+#eval (List.range 1).cataTR' (match · with | .nil => 0 | .cons a b => a + b)
+
+  -- let rec loop (x : (ListF α (ListF α β ⊕ β) ⊕ β)) : β :=
+  --   match x with
+  --   | Sum.inr a => a
+  --   | Sum.inl b => sorry
+  --     -- match Functor.map (fun y => Sum.inl (Functor.map (fun z => Sum.inr z) y)) b with
+  --     -- | mapped => loop (Functor.map (fun y =>
+  --     --     match y with
+  --     --     | Sum.inl x => loop (Sum.inl x)
+  --     --     | Sum.inr x => Sum.inr (f x)) mapped)
+  -- let x1 : Base.base t (Rec t α α) := sorry
+  -- loop (Sum.inl x1)
+
+
+-- instance [Base t] : Functor (Sum (Base.base t α)) where
+--   map := fun a b => Sum.map id a b
+
+-- abbrev Rec a b c [Base a] := Base.base a b ⊕ c
+
+-- partial def cataTR [Inhabited α] [Base t] [Functor (Base.base t)] [Recursive t]
+--     (f : Base.base t α → α) (n : t) : α :=
+--   let rec loop (x : (Rec t (Rec t α α) α)) : α :=
+--     match x with
+--     | Sum.inr a => a
+--     | Sum.inl b => sorry
+--       -- match Functor.map (fun y => Sum.inl (Functor.map (fun z => Sum.inr z) y)) b with
+--       -- | mapped => loop (Functor.map (fun y =>
+--       --     match y with
+--       --     | Sum.inl x => loop (Sum.inl x)
+--       --     | Sum.inr x => Sum.inr (f x)) mapped)
+--   let x1 : Base.base t (Rec t α α) := sorry
+--   loop (Sum.inl x1)
+--   -- loop (Sum.inl (Functor.map (fun x => Sum.inl x) (Recursive.project n)))
 
 instance instBaseList : Base (List α) where
   base := ListF α
@@ -81,10 +182,6 @@ instance instFunctorBaseNode : Functor (Base.base Node) where
 
 instance instRecursiveNode : Recursive Node where
   project := Node.project
-
-partial def cata [Inhabited α] [Base t] [Functor (Base.base t)] [Recursive t]
-    (f : Base.base t α → α) (n : t) : α :=
-  f (Functor.map (cata f) (Recursive.project n))
 
 def sumFunc : ListF Nat Nat → Nat
   | .nil => 0
