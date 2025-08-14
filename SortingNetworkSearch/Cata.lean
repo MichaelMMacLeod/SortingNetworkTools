@@ -25,3 +25,5 @@ def sumFunc : ListF Nat Nat → Nat
 partial def cata [Inhabited α] [Base t] [Functor (Base.base t)] [Recursive t]
     (f : Base.base t α → α) (n : t) : α :=
   f <| (cata f) <$> (Recursive.project n)
+
+-- abbrev Cata t [Base t] (α : Type u) := Base.base t α → α

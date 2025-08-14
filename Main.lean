@@ -1,38 +1,48 @@
 import SortingNetworkSearch.LFSR
 import SortingNetworkSearch.Network
-import SortingNetworkSearch.NetworkWidget
+import SortingNetworkSearch.SVG
+-- import SortingNetworkSearch.NetworkWidget
 
-@[noinline]
-def computeWithCata (lst : List Nat) : Nat := cata (β := Nat) lst List.project
-    (fun lst =>
-      match lst with
-      | .nil => 0
-      | .cons a b => a + b)
-    (fun state xs f =>
-    match xs with
-    | .nil => (state, .nil)
-    | .cons a b =>
-      let (state, c) := f state b
-      (state, .cons a c))
+-- @[noinline]
+-- def computeWithCata (lst : List Nat) : Nat := cata (β := Nat) lst List.project
+--     (fun lst =>
+--       match lst with
+--       | .nil => 0
+--       | .cons a b => a + b)
+--     (fun state xs f =>
+--     match xs with
+--     | .nil => (state, .nil)
+--     | .cons a b =>
+--       let (state, c) := f state b
+--       (state, .cons a c))
+
 
 def main (args : List String) : IO Unit := do
-  let beforeA ← IO.monoMsNow
-  let lst := List.range args[0]!.toNat!
-  let afterA ← IO.monoMsNow
-  println! "took {afterA - beforeA} to make the list"
-  let afterA ← IO.monoMsNow
-  println! "took {afterA - beforeA} to make the list"
-  let beforeA ← IO.monoMsNow
-  let v := lst.foldr (· + ·) 0
-  println! "{v} in {afterA - beforeA}"
-  let afterA ← IO.monoMsNow
-  println! "{v} in {afterA - beforeA}"
-  let beforeA ← IO.monoMsNow
-  let v := computeWithCata lst
-  let afterA ← IO.monoMsNow
-  println! "{v} in {afterA - beforeA}"
-  let afterA ← IO.monoMsNow
-  println! "{v} in {afterA - beforeA}"
+  let size := args[0]!.toNat!
+  let x2 : Trampoline (Nat → String) := SVG.Node.cataTR SVG.toStringFunc' (SVG.mkDeepNode size)
+  println! x2.run 0 |>.get! 0
+
+
+  -- let beforeA ← IO.monoMsNow
+  -- let lst := List.range args[0]!.toNat!
+  -- let afterA ← IO.monoMsNow
+  -- println! "took {afterA - beforeA} to make the list"
+  -- let afterA ← IO.monoMsNow
+  -- println! "took {afterA - beforeA} to make the list"
+  -- let beforeA ← IO.monoMsNow
+  -- let v := lst.foldr (· + ·) 0
+  -- println! "{v} in {afterA - beforeA}"
+  -- let afterA ← IO.monoMsNow
+  -- println! "{v} in {afterA - beforeA}"
+  -- let beforeA ← IO.monoMsNow
+  -- let v := computeWithCata lst
+  -- let afterA ← IO.monoMsNow
+  -- println! "{v} in {afterA - beforeA}"
+  -- let afterA ← IO.monoMsNow
+  -- println! "{v} in {afterA - beforeA}"
+
+
+
   -- let size := args[0]!.toNat!.toUSize
   -- let symmetric := args[1]! = "true"
   -- let mut lastFailures : Option UInt64 := .some 1

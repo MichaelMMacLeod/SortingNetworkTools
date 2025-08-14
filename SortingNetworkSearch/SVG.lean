@@ -19,7 +19,7 @@ structure Node where
   children : Array Node
   deriving Inhabited, Repr
 
-structure NodeF α where
+structure NodeF (α : Type u) where
   name : String
   tags : Tags
   children : Array α
@@ -58,7 +58,7 @@ def Array.sequenceTrampoline (xs : Array (Trampoline α)) : Trampoline (Array α
               .ret (result.push a)
   result
 
-partial def Node.cataTR {α : Type} [Nonempty α] (f : NodeF α → α) (n : Node) : α :=
+partial def Node.cataTR {α : Type u} [Nonempty α] (f : NodeF α → α) (n : Node) : α :=
   cataTRAux f n |>.run
 where
   cataTRAux [Nonempty α] (f : NodeF α → α) (n : Node) : Trampoline α :=
@@ -83,18 +83,33 @@ def mkDeepNode (depth : Nat) : Node := Id.run do
     depth := depth - 1
   result
 
-def toStringFunc : NodeF (Nat → String) → (Nat → String) :=
-  fun { name, tags, children } indentLevel => Id.run do
-    let mut childStrs := ""
-    for c in children do
-      childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
-    let space := if tags.size > 0 then " " else ""
-    let indent1 := "".pushn ' ' indentLevel
-    let indent2 := if children.size = 0 then "" else indent1
-    let nl := if children.size = 0 then "" else "\n"
-    s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
+def toStringFunc : NodeF (Nat → Trampoline String) → (Nat → Trampoline String) :=
+  fun { name, tags, children } indentLevel =>
+    let children := children.map (· (indentLevel + 2))
+    let children := Array.sequenceTrampoline children
+    .flatMap children fun children =>
+      let childStrs := children.foldl (· ++ · ++ "\n") ""
+      let space := if tags.size > 0 then " " else ""
+      let indent1 := "".pushn ' ' indentLevel
+      let indent2 := if children.size = 0 then "" else indent1
+      let nl := if children.size = 0 then "" else "\n"
+      .ret s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
 
-#eval println! cata toStringFunc (mkDeepNode 5) 0 |>.get! 0
-#eval println! (mkDeepNode 100).cataTR toStringFunc 0 |>.get! 0
+def toStringFunc' : NodeF (Trampoline (Nat → String)) → (Trampoline (Nat → String)) :=
+  fun { name, tags, children } =>
+    let children := Array.sequenceTrampoline children
+    .flatMap children fun children =>
+      .ret fun indentLevel =>
+        -- let children := #[children[0]?.getD (fun _ => "") <| indentLevel + 2]
+        let children := children.map (· (indentLevel + 2))
+        let childStrs := children.foldl (· ++ · ++ "\n") ""
+        let space := if tags.size > 0 then " " else ""
+        let indent1 := "".pushn ' ' indentLevel
+        let indent2 := if children.size = 0 then "" else indent1
+        let nl := if children.size = 0 then "" else "\n"
+        s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
+
+-- #eval println! cata toStringFunc (mkDeepNode 5) 0 |>.run |>.get! 0
+-- #eval println! (mkDeepNode 100).cataTR toStringFunc 0 |>.get! 0
 
 end SVG
