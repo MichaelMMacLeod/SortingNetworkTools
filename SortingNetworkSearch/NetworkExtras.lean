@@ -145,7 +145,6 @@ def Network.toNicelyOrderedSwapLayers (n : Network size) : Array SwapLayer := Id
   for layer in n.layers do
     let mut resultLayer : Array Swap := #[]
     let mut swaps := Layer.toSwapLayer layer |>.qsort (lt := Swap.lt)
-    swaps := dbgTraceVal swaps
     while h : 0 < swaps.size do
       let smallest := swaps[swaps.size - 1]
       swaps := swaps.pop
@@ -188,7 +187,7 @@ def Network.toSVG (n : Network size) : SVG.Node :=
   result
 where
   swaps : Array SwapLayer := n.toNicelyOrderedSwapLayers
-  hscale : Float := 15
+  hscale : Float := 9
   vscale : Float := 20
   hoffset := hscale
   voffset := vscale
@@ -198,7 +197,7 @@ where
   vbHeight := height
   bgColor := "white"
   swapLineColor := "black"
-  swapLineStrokeWidth := 1
+  swapLineStrokeWidth := 0.5
   swapCircleColor := swapLineColor
   swapCircleRadius := 3
   channelColor := swapLineColor
@@ -214,14 +213,14 @@ where
         ("y1", s!"{y}"),
         ("y2", s!"{y}"),
         ("stroke", s!"{swapLineColor}"),
-        ("stroke-width", s!"{swapLineStrokeWidth}"),
+        ("stroke-width", s!"{channelStrokeWidth}"),
       ]
       children := []
     }
-  numVerticalLines := swapNodesAndVerticalLineCount.snd - 1
+  numVerticalLines := swapNodesAndVerticalLineCount.snd - 2
   swapNodes := swapNodesAndVerticalLineCount.fst
   swapNodesAndVerticalLineCount : List SVG.Node × Nat :=
-    let (xs, _, vlineCount) := swaps.foldl SwapLayer.toSVG ([], 0, 0)
+    let (xs, _, vlineCount) := swaps.foldl SwapLayer.toSVG ([], 1, 1)
     (xs, vlineCount)
   swapGoesOnNextLine (occupiedChannels : Array Bool) (swap : USize × USize) : Bool := Id.run do
     let (a, b) := swap
@@ -232,7 +231,7 @@ where
   SwapLayer.toSVG (acc : List SVG.Node × Nat × Nat) (sl : SwapLayer) : List SVG.Node × Nat × Nat :=
     let (acc, sIdx, vlineCount) := acc
     let (sIdx, _, xs, vlineCount) := sl.foldl Swap.toSVG (sIdx, OccupiedChannels.mk size, [], vlineCount)
-    (acc ++ xs, sIdx + 1, vlineCount + 1)
+    (acc ++ xs, sIdx + 3, vlineCount + 3)
   Swap.toSVG (acc : Nat × Array Bool × List SVG.Node × Nat) (s : Swap) : Nat × Array Bool × List SVG.Node × Nat :=
     let (sIdx, occupiedChannels, acc, vlineCount) := acc
     let (a, b) := (min s.fst s.snd, max s.fst s.snd)
@@ -296,4 +295,5 @@ where
     }
     (sIdx, occupiedChannels, [line, c1, c2] ++ acc, vlineCount)
 
+#widget svgWidget with { svgString := nw15_56x10.consolidateLayers.toSVG.toString : SVGWidgetProps }
 #widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 16).toSVG.toString : SVGWidgetProps }
