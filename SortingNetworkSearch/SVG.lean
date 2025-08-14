@@ -98,52 +98,58 @@ def mkDeepNode (depth : Nat) : Node := Id.run do
     depth := depth - 1
   result
 
-def toStringFunc : NodeF (Nat → Trampoline String) → (Nat → Trampoline String) :=
-  fun { name, tags, children } indentLevel =>
-    let children := children.map (· (indentLevel + 2))
-    let children := List.sequenceTrampoline children
-    .flatMap children fun children =>
-      let childStrs := children.foldl (· ++ · ++ "\n") ""
-      let space := if tags.size > 0 then " " else ""
-      let indent1 := "".pushn ' ' indentLevel
-      let indent2 := if children.isEmpty then "" else indent1
-      let nl := if children.isEmpty then "" else "\n"
-      .ret s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
+-- def toStringFunc : NodeF (Nat → Trampoline String) → (Nat → Trampoline String) :=
+--   fun { name, tags, children } indentLevel =>
+--     let children := children.map (· (indentLevel + 2))
+--     let children := List.sequenceTrampoline children
+--     .flatMap children fun children =>
+--       let childStrs := children.foldl (· ++ · ++ "\n") ""
+--       let space := if tags.size > 0 then " " else ""
+--       let indent1 := "".pushn ' ' indentLevel
+--       let indent2 := if children.isEmpty then "" else indent1
+--       let nl := if children.isEmpty then "" else "\n"
+--       .ret s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
 
-def toStringFunc' : NodeF (Trampoline (Nat → String)) → (Trampoline (Nat → String)) :=
-  fun { name, tags, children } =>
-    let children := List.sequenceTrampoline children
-    .flatMap children fun children =>
-      .ret fun indentLevel =>
-        -- let children := #[children[0]?.getD (fun _ => "") <| indentLevel + 2]
-        let children := children.map (· (indentLevel + 2))
-        let childStrs := children.foldl (· ++ · ++ "\n") ""
-        let space := if tags.size > 0 then " " else ""
-        let indent1 := "".pushn ' ' indentLevel
-        let indent2 := if children.isEmpty then "" else indent1
-        let nl := if children.isEmpty then "" else "\n"
-        s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
+-- def toStringFunc' : NodeF (Trampoline (Nat → String)) → (Trampoline (Nat → String)) :=
+--   fun { name, tags, children } =>
+--     let children := List.sequenceTrampoline children
+--     .flatMap children fun children =>
+--       .ret fun indentLevel =>
+--         -- let children := #[children[0]?.getD (fun _ => "") <| indentLevel + 2]
+--         let children := children.map (· (indentLevel + 2))
+--         let childStrs := children.foldl (· ++ · ++ "\n") ""
+--         let space := if tags.size > 0 then " " else ""
+--         let indent1 := "".pushn ' ' indentLevel
+--         let indent2 := if children.isEmpty then "" else indent1
+--         let nl := if children.isEmpty then "" else "\n"
+--         s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
 
-@[specialize, inline]
-def toStringFunc'' : NodeF (Trampoline (Nat → String → String)) → (Trampoline (Nat → String → String)) :=
-  fun { name, tags, children } =>
-    let children := List.sequenceTrampoline children
-    .flatMap children fun children =>
-      .flatMap ?_ ?_
-      .ret fun indentLevel result =>
-        -- let result := dbgTrace s!"{result.length}" fun () => result
-        let space := if tags.size > 0 then " " else ""
-        let indent1 := "".pushn ' ' indentLevel
-        let indent2 := if children.isEmpty then "" else indent1
-        let nl := if children.isEmpty then "" else "\n"
-        let result := result ++ s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}"
-        let indentLevel := indentLevel + 1
-        let app := fun (f : Nat → String → String) => f indentLevel
-        let children := children.map app
-        let app := fun (result : Trampoline String) (c : String → String) => Trampoline.flatMap result fun result => .ret <| c result
-        let result := children.foldl (init := Trampoline.ret result) app
-        let result := Trampoline.flatMap result fun result => result ++ s!"{nl}{indent2}</{name}>"
-        result
+abbrev toStringAuxResult := Trampoline (Nat × String → Trampoline String)
+
+def Node.toString (n : Node) : String :=
+  let initialIndentLevel := 0
+  let result := ""
+  n.cataTR toStringFunc |>.run (initialIndentLevel, result) |>.run
+where
+  toStringFunc : NodeF toStringAuxResult → toStringAuxResult :=
+    fun { name, tags, children } =>
+      let children := List.sequenceTrampoline children
+      .flatMap children fun children =>
+        .ret fun (indentLevel, result) =>
+          let space := if tags.size > 0 then " " else ""
+          let indent1 := "".pushn ' ' indentLevel
+          let indent2 := if children.isEmpty then "" else indent1
+          let nl := if children.isEmpty then "" else "\n"
+          let result := result ++ s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}"
+          let indentLevel := indentLevel + 1
+          let result := children.foldl (init := Trampoline.ret result)
+            fun result c =>
+              .flatMap result fun result =>
+                .flatMap (c (indentLevel, result)) fun result =>
+                  .ret (result ++ nl)
+          let result := Trampoline.flatMap result fun result =>
+            .ret (result ++ s!"{indent2}</{name}>")
+          result
 
 -- #eval println! cata toStringFunc (mkDeepNode 5) 0 |>.run |>.get! 0
 -- #eval println! (mkDeepNode 100).cataTR toStringFunc 0 |>.get! 0

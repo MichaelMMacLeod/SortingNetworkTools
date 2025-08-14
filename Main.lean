@@ -24,9 +24,11 @@ def main (args : List String) : IO Unit := do
 
   let c1 := SVG.mkDeepNode (size / 2)
   let c2 := SVG.mkDeepNode (size / 5)
-  let n := { SVG.mkDeepNode 0 with children := [c1, c2] }
-  let x2 : Trampoline (Nat → String → String) := SVG.Node.cataTR SVG.toStringFunc'' n
-  println! x2.run 0 "" |>.get! 0
+  let c3 := SVG.mkDeepNode (size / 8)
+  let n := { SVG.mkDeepNode 0 with children := [c1, c2, c3] }
+  println! n.toString
+  -- let x2 : Trampoline (Nat × String → Trampoline String) := SVG.Node.cataTR SVG.toStringFunc'' n
+  -- println! x2.run (0, "")
 
   -- let x2 : Trampoline String := SVG.Node.cataTR SVG.toStringFunc (SVG.mkDeepNode size) 0
 
