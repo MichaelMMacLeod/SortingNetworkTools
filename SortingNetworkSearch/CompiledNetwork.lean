@@ -17,13 +17,6 @@ instance {size : USize} : Inhabited (CompiledNetwork size) where
     rw [Array.size_empty]
     exact USize.size_pos
 
-@[grind =]
-theorem TestPack.compareAndSwap_size_eq
-    (a b : USize)
-    (vals : Subtype (compareAndSwap.h · a b))
-    : (TestPack.compareAndSwap a b vals).size = vals.val.size := by
-  simp [TestPack.compareAndSwap]
-
 @[grind]
 structure CompiledNetwork.runTestPack.h (n : CompiledNetwork size) (testPack : Array UInt64) where
   size_vals_lt_size_USize : testPack.size < USize.size := by grind

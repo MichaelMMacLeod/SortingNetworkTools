@@ -19,10 +19,90 @@ def ListF.embed : ListF α (List α) → List α
   | .nil => .nil
   | .cons a b => .cons a b
 
-def ListF.fmap (l : ListF α β) (f : β → χ) : ListF α χ :=
+def ListF.fmap (f : β → χ) (l : ListF α β) : ListF α χ :=
   match l with
   | .nil => .nil
   | .cons a b => .cons a (f b)
+
+class Base (α : Type u) where
+  base : Type u → Type u
+
+class Recursive t [Base t] [f : Functor (Base.base t)] where
+  project : t → Base.base t t
+
+instance instBaseList : Base (List α) where
+  base := ListF α
+
+instance instFunctorBaseList : Functor (Base.base (List α)) where
+  map := ListF.fmap
+
+instance instRecursiveList : Recursive (List α) where
+  project := List.project
+
+abbrev Tags := Std.HashMap String String
+
+def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
+  let mut result := ""
+  for (tag, value) in tags do
+    result := result ++ s!"{tag}=\"{value}\" "
+  result := result.dropRight 1
+  result
+
+structure Node where
+  name : String
+  tags : Tags
+  children : Array Node
+  deriving Inhabited, Repr
+
+structure NodeF α where
+  name : String
+  tags : Tags
+  children : Array α
+  deriving Inhabited, Repr
+
+def Node.project (n : Node) : NodeF Node := { n with }
+
+def NodeF.map (f : α → β) (n : NodeF α) : NodeF β :=
+  { n with children := f <$> n.children }
+
+def mkDeepNode (depth : Nat) : Node := Id.run do
+  let mut result := { name := (0).repr, tags := ∅, children := #[] }
+  let mut depth := depth
+  while 0 < depth do
+    result := { name := depth.repr, tags := ∅, children := #[result] }
+    depth := depth - 1
+  result
+
+instance instBaseNode : Base Node where
+  base := NodeF
+
+instance instFunctorBaseNode : Functor (Base.base Node) where
+  map := NodeF.map
+
+instance instRecursiveNode : Recursive Node where
+  project := Node.project
+
+partial def cata [Inhabited α] [Base t] [Functor (Base.base t)] [Recursive t]
+    (f : Base.base t α → α) (n : t) : α :=
+  f (Functor.map (cata f) (Recursive.project n))
+
+def sumFunc : ListF Nat Nat → Nat
+  | .nil => 0
+  | .cons a b => a + b
+
+def toStringFunc : NodeF (Nat → String) → (Nat → String) :=
+  fun { name, tags, children } indentLevel => Id.run do
+    let mut childStrs := ""
+    for c in children do
+      childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
+    let space := if tags.size > 0 then " " else ""
+    let indent1 := "".pushn ' ' indentLevel
+    let indent2 := if children.size = 0 then "" else indent1
+    let nl := if children.size = 0 then "" else "\n"
+    s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
+
+#eval cata sumFunc (List.range 1000)
+#eval println! cata toStringFunc (mkDeepNode 10) 0
 
 -- def List.cata (l : List α) (f : ListF α β → β) : β :=
 --   let rec loop1
@@ -91,6 +171,327 @@ partial def cata
     else
       (vals[0]!).get!
   loop #[none] #[.expand 0 a]
+
+
+
+-- inductive TailRec where
+--   | ret : Nat → TailRec
+--   | suspend : (Unit → TailRec) → TailRec
+--   | flatMap : TailRec → (Nat → TailRec) → TailRec
+
+-- def fac' (n : Nat) : Nat :=
+--   if n = 0 then
+--     1
+--   else
+--     n * fac' (n - 1)
+
+-- def fac (n : Nat) : TailRec :=
+--   if n = 0 then
+--     .ret 1
+--   else
+--     .flatMap
+--       (.suspend fun _ => fac (n - 1))
+--       fun x => .ret (n * x)
+
+-- partial def TailRec.run : TailRec → Nat
+--   | .ret a => a
+--   | .suspend f => (f ()).run
+--   | .flatMap x f =>
+--     match x with
+--     | .ret a => (f a).run
+--     | .suspend r => (TailRec.flatMap (r ()) f).run
+--     | .flatMap y g => (y.flatMap (fun q => .flatMap (g q) f)).run
+
+
+abbrev Tags := Std.HashMap String String
+
+structure Node where
+  name : String
+  tags : Tags
+  children : Array Node
+  deriving Inhabited, Repr
+
+def mkDeepNode (depth : Nat) : Node := Id.run do
+  let mut result := { name := (0).repr, tags := ∅, children := #[] }
+  let mut depth := depth
+  while 0 < depth do
+    result := { name := depth.repr, tags := ∅, children := #[result] }
+    depth := depth - 1
+  result
+
+structure NodeF α where
+  name : String
+  tags : Tags
+  children : Array α
+  deriving Inhabited, Repr
+
+def NodeF.fmap  (f : α → β) (n : NodeF α) : NodeF β :=
+  { n with children := f <$> n.children }
+
+def Node.project (n : Node) : NodeF Node := { n with }
+def NodeF.embed (n : NodeF Node) : Node := { n with }
+
+inductive TailRec : Type u → Type (u+1) where
+  | ret : α → TailRec α
+  | suspend : (Unit → TailRec α) → TailRec α
+  | flatMap : TailRec α → (α → TailRec β) → TailRec β
+
+partial def TailRec.run [Nonempty α] : TailRec α → α
+  | .ret a => a
+  | .suspend f => (f ()).run
+  | .flatMap x f =>
+    match x with
+    | .ret a => (f a).run
+    | .suspend r => (TailRec.flatMap (r ()) f).run
+    | .flatMap y g => (y.flatMap (fun q => .flatMap (g q) f)).run
+
+
+partial def Node.cata (f : NodeF α → α) (n : Node) : TailRec α :=
+  -- f (NodeF.fmap (Node.cata f) n.project)
+  .flatMap
+    (.suspend fun _ => NodeF.fmap (Node.cata f) n.project)
+    fun x => .ret (f x)
+
+partial def Node.cata (f : NodeF α → α) (n : Node) : TailRec α :=
+  .flatMap
+    (.suspend fun _ =>
+      .flatMap
+        (.suspend fun _ => .ret n.project)
+        fun x1 =>
+          .flatMap
+            (.suspend fun _ => .ret (Node.cata f))
+            fun x2 => NodeF.fmap x2 x1
+    )
+    fun x => .ret (f x)
+
+partial def Node.cata (f : NodeF α → α) (n : Node) : TailRec α :=
+  -- f (NodeF.fmap (Node.cata f) n.project)
+  .flatMap
+    (.suspend fun _ =>
+      .flatMap
+        (.suspend fun _ => .ret n.project)
+        fun x => NodeF.fmap (Node.cata f) x
+    )
+    fun x => .ret (f x)
+
+partial def Node.cata (f : NodeF α → α) (n : Node) : TailRec α :=
+  -- f (NodeF.fmap (Node.cata f) n.project)
+  .flatMap
+    (.suspend fun _ => NodeF.fmap (Node.cata f) n.project)
+    fun x => .ret (f x)
+
+  -- let f : NodeF (TailRec α) → TailRec α :=
+  --   fun n =>
+  --     let cs : Array (TailRec α) :=  <$> n.children
+  --     sorry
+  -- sorry
+  -- let x1 := Node.cata f
+  -- let x2 := n.project
+  -- .flatMap
+  --   (fun _ => NodeF.fmap x1 x2)
+  -- let x3 := x2.fmap x1
+  -- let x4 := f x3
+  -- x4
+
+-- class inductive Trampoline (α : Type) where
+--   | done : α → Trampoline α
+--   | delay : (Unit → Trampoline α) → Trampoline α
+--   | flatMap :
+
+
+-- structure FlatMap (α β : Type) where
+--   t : TailRec α
+--   f : α → (TailRec α ⊕ FlatMap β α)
+
+-- inductive TailRec where
+--   | ret : String → TailRec
+--   | suspend : (Unit → TailRec) → TailRec
+--   | flatMap : TailRec → (String → TailRec) → TailRec
+--   deriving Inhabited
+
+-- partial def TailRec.run : TailRec → String
+--   | .ret a => a
+--   | .suspend f => (f ()).run
+--   | .flatMap x f =>
+--     match x with
+--     | .ret a => (f a).run
+--     | .suspend r => (TailRec.flatMap (r ()) f).run
+--     | .flatMap y g => (y.flatMap (fun q => .flatMap (g q) f)).run
+
+partial def Node.cata'' (f : NodeF String → String) (n : Node) : TailRec :=
+  let x1 := Node.cata'' f
+  let x2 := n.project
+  let x3 :=
+    TailRec.flatMap
+      (TailRec.suspend fun _ => TailRec.ret <| f <| x2.fmap x1)
+      fun x3 => f x3
+  x3
+
+
+partial def Node.cata' (f : NodeF String → String) (n : Node) : String :=
+  let x1 := Node.cata' f
+  let x2 := n.project
+  let x3 := x2.fmap x1
+  let x4 := f x3
+  x4
+
+partial def Node.cata [Inhabited α] (f : NodeF α → α) (n : Node) : α :=
+  f (NodeF.fmap (Node.cata f) n.project)
+
+partial def Node.cataold [Inhabited α] (f : NodeF α → α) (n : Node) : α :=
+  f (NodeF.fmap (Node.cataold f) n.project)
+
+def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
+  let mut result := ""
+  for (tag, value) in tags do
+    result := result ++ s!"{tag}=\"{value}\" "
+  result := result.dropRight 1
+  result
+
+def Node.toString (n : Node) : String :=
+  let f : Nat → String := n.cata
+    (fun { name, tags, children } indentLevel => Id.run do
+    let mut childStrs := ""
+    for c in children do
+      childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
+    let space := if tags.size > 0 then " " else ""
+    let indent1 := "".pushn ' ' indentLevel
+    let indent2 := if children.size = 0 then "" else indent1
+    let nl := if children.size = 0 then "" else "\n"
+    s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>")
+  f 0
+
+-- def dn1 := mkDeepNode 10000 |>.toString |>.get! 0
+
+-- #eval dn1
+
+#eval println! Node.toString {
+  name := "svg",
+  tags := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
+  children := #[
+    {
+      name := "rect",
+      tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
+      children := #[]
+    },
+    {
+      name := "rect",
+      tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
+      children := #[]
+    }
+  ]
+}
+
+
+-- def Node.toString (n : Node) : String :=
+--   let f : Nat → String := cata n
+--     (fun n => show NodeF Node from { n with children := n.children })
+--     (fun { name, tags, children } indentLevel => Id.run do
+--     let mut childStrs := ""
+--     for c in children do
+--       childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
+--     let space := if tags.size > 0 then " " else ""
+--     let indent1 := "".pushn ' ' indentLevel
+--     let indent2 := if children.size = 0 then "" else indent1
+--     let nl := if children.size = 0 then "" else "\n"
+--     s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>")
+--     (fun state n f =>
+--       let (state, children) := f state n.children
+--       (state, {n with children}))
+--   f 0
+
+-- #eval (fac 10000).run
+
+-- def TailRec.flatMap (sub : TailRec α) (k : α → TailRec β) : TailRec β :=
+
+
+-- structure FlatMap (α β : Type) where
+--   sub : TailRec α
+--   k : α → TailRec β
+
+-- #check (· <$> ·)
+
+-- inductive
+
+-- inductive TailRec where
+--   | map : {β : Type} → (α → β) → TailRec
+--   | flatMap : {β : Type} → (α → TailRec) → TailRec
+
+-- class FlatMap (α β : Type) where
+
+
+-- inductive TailRec (α β : Type) where
+--   | ret : α → TailRec α β
+--   | suspend : (Unit → TailRec α β) → TailRec α β
+--   | flatMap : TailRec α β → (β → TailRec α β) → TailRec α β
+
+
+-- inductive TailRec (α : Type) where
+--   | tPure : α → TailRec α
+--   | tSuspend : (Unit → TailRec α) → TailRec α
+--   | tBind : {β : Type} → TailRec α → (α → TailRec β) → TailRec β
+
+#check pure
+-- inductive Apply (α β : Type) where
+--   | loop : (α → Apply α β) → α → Apply α β
+--   | value : β → Apply α β
+
+-- def trampoline (x : Apply α β) : β :=
+--   match x with
+--   | .loop f a => trampoline (f a)
+--   | .value b => b
+
+-- def fibtramp (n : Nat) (c : Nat → β) : Apply α β :=
+--   if n ≤ 1 then
+--     Apply.value (c n)
+--   else
+--     Apply.loop (fibtramp (n - 1)) fun x =>
+--       Apply.loop (fibtramp (n - 2)) fun y =>
+--         Apply.value (c (x + y))
+
+-- structure Apply (α β : Type) where
+--   f : α → Apply α β ⊕ β
+--   a : α
+
+-- def fibcps (n : Nat) (c : Nat → α) : α :=
+--   if n ≤ 1 then
+--     c n
+--   else
+--     fibcps (n - 1) fun x =>
+--       fibcps (n - 2) fun y =>
+--         c (x + 1)
+
+-- def trampoline (x : Apply α β) : β :=
+--   match x.f x.a with
+--   | .inr b => b
+--   | .inl x => trampoline x
+
+-- def fibt (n : Nat) (c : Nat → α) : α :=
+
+
+-- partial def cata'
+--     ()
+
+/-
+cata f [1,2,3]
+f (fmap (cata f) 1 :: [2,3])
+f (1 :: (cata f [2,3]))
+f (1 :: (fmap (cata f) 2 :: [3]))
+f (1 :: (2 :: (cata f [3])))
+f (1 ::)
+
+cata f [1,2,3]
+{ f := f
+  a := fun () =>
+    {
+    }
+}
+f (fmap (cata f) 1 :: [2,3])
+f (1 :: (cata f [2,3]))
+f (1 :: (fmap (cata f) 2 :: [3]))
+f (1 :: (2 :: (cata f [3])))
+f (1 ::)
+-/
 
 
 
@@ -188,16 +589,64 @@ stack = [1, [2, 3]]
 
 
 
--- namespace SVG
+namespace SVG
 
--- abbrev Tags := Std.HashMap String String
+abbrev Tags := Std.HashMap String String
 
--- @[grind]
--- structure Node where
---   name : String
---   tags : Tags
---   children : List Node
---   deriving Inhabited, Repr
+structure Node where
+  name : String
+  tags : Tags
+  children : Array Node
+  deriving Inhabited, Repr
+
+structure NodeF α where
+  name : String
+  tags : Tags
+  children : Array α
+  deriving Inhabited, Repr
+
+def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
+  let mut result := ""
+  for (tag, value) in tags do
+    result := result ++ s!"{tag}=\"{value}\" "
+  result := result.dropRight 1
+  result
+
+def Node.toString (n : Node) : String :=
+  let f : Nat → String := cata n
+    (fun n => show NodeF Node from { n with children := n.children })
+    (fun { name, tags, children } indentLevel => Id.run do
+    let mut childStrs := ""
+    for c in children do
+      childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
+    let space := if tags.size > 0 then " " else ""
+    let indent1 := "".pushn ' ' indentLevel
+    let indent2 := if children.size = 0 then "" else indent1
+    let nl := if children.size = 0 then "" else "\n"
+    s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>")
+    (fun state n f =>
+      let (state, children) := f state n.children
+      (state, {n with children}))
+  f 0
+open SVG
+#eval println! Node.toString {
+  name := "svg",
+  tags := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
+  children := #[
+    {
+      name := "rect",
+      tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
+      children := #[]
+    },
+    {
+      name := "rect",
+      tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
+      children := #[]
+    }
+  ]
+}
+
+end SVG
 
 -- mutual
 -- def Node.size : Node → Nat
@@ -207,12 +656,6 @@ stack = [1, [2, 3]]
 --   | c :: cs => c.size + (Node.sizeAux cs)
 -- end
 
--- def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
---   let mut result := ""
---   for (tag, value) in tags do
---     result := result ++ s!"{tag}=\"{value}\" "
---   result := result.dropRight 1
---   result
 
 -- structure Tree (α : Type) where
 --   label : α
@@ -319,34 +762,6 @@ stack = [1, [2, 3]]
 --   -- | none | some (Sum.inl _) => panic! ""
 --   -- | some (Sum.inr (i, n)) => f { n with children := acc[0]?.get! }
 
--- def Node.toString (n : Node) : String :=
---   let f : Nat → String := n.cata fun { name, tags, children } indentLevel => Id.run do
---     let mut childStrs := ""
---     for c in children do
---       childStrs := childStrs ++ (c <| indentLevel + 2) ++ "\n"
---     let space := if tags.size > 0 then " " else ""
---     let indent1 := "".pushn ' ' indentLevel
---     let indent2 := if children.size = 0 then "" else indent1
---     let nl := if children.size = 0 then "" else "\n"
---     s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
---   f 0
-
--- #eval println! Node.depth {
---   name := "svg",
---   tags := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
---   children := #[
---     {
---       name := "rect",
---       tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
---       children := #[]
---     },
---     {
---       name := "rect",
---       tags := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
---       children := #[]
---     }
---   ]
--- }
 
 -- -- structure ViewBox where
 -- --   minX : Float

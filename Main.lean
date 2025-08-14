@@ -3,7 +3,7 @@ import SortingNetworkSearch.Network
 import SortingNetworkSearch.NetworkWidget
 
 @[noinline]
-unsafe def computeWithCata (lst : List Nat) : Nat := cata (β := Nat) lst List.project
+def computeWithCata (lst : List Nat) : Nat := cata (β := Nat) lst List.project
     (fun lst =>
       match lst with
       | .nil => 0
@@ -15,7 +15,7 @@ unsafe def computeWithCata (lst : List Nat) : Nat := cata (β := Nat) lst List.p
       let (state, c) := f state b
       (state, .cons a c))
 
-unsafe def main (args : List String) : IO Unit := do
+def main (args : List String) : IO Unit := do
   let beforeA ← IO.monoMsNow
   let lst := List.range args[0]!.toNat!
   let afterA ← IO.monoMsNow

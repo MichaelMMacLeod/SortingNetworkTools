@@ -132,6 +132,13 @@ def TestPack.compareAndSwap
   let testPack := testPack.uset b (tmp ||| testPack[b]'(by grind)) (by grind)
   testPack
 
+@[grind =]
+theorem TestPack.compareAndSwap_size_eq
+    (a b : USize)
+    (vals : Subtype (compareAndSwap.h · a b))
+    : (TestPack.compareAndSwap a b vals).size = vals.val.size := by
+  simp [TestPack.compareAndSwap]
+
 /-- Returns the number of tests in `testPack` that are not in sorted order. -/
 partial def TestPack.countFailures (testPack : Array UInt64) : UInt64 :=
   let rec loop (i : USize) (acc : UInt64) : UInt64 :=

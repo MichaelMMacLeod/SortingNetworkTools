@@ -3,7 +3,7 @@ import Lean
 
 /-
 The zero-one principle states that a sorting network with n channels
-is correct if it correctly sorts all 2^n arrays of zero and one.
+is correct if it correctly sorts all 2^n arrays of zeros and ones.
 
 For efficiency, instead of sorting arrays of zeros and ones, we sort
 the zeros and ones inside the binary representation of unsigned
@@ -16,7 +16,7 @@ It is advantageous to test these integers in a random order so as to
 more quickly rule out incorrect networks which may succeed on several
 adjacent integers. One way to do this would be to put all 2^n integers
 in an array and then shuffle it. Unfortunately, the memory requirement
-for storing 2^n integers quickly make this strategy infeasible.
+for storing 2^n integers quickly makes this strategy infeasible.
 
 Instead, we use a maximal linear feedback shift register (maximal
 LFSR): a pseudorandom number generator which only repeats after it has
@@ -28,7 +28,7 @@ For more on LFSRs, see https://en.wikipedia.org/wiki/Linear-feedback_shift_regis
 -/
 
 -- From https://www.partow.net/programming/polynomials/primitive_polynomials_GF2.txt
--- (excluding the `1` at the end of each of them)
+-- (excluding the extra `1` at the end of each of them)
 def coefficients : Array (Array Nat) := #[
   #[2, 1],
   #[3, 1],
