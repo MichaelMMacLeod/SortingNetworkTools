@@ -48,6 +48,7 @@ def TailRec.map (f : α → β) (t : TailRec α) : TailRec β :=
 instance : Functor TailRec where
   map := .map
 
+@[specialize]
 partial def TailRec.run [Nonempty α] : TailRec α → α
   | .ret a => a
   | .suspend f => (f ()).run
@@ -69,34 +70,31 @@ instance instFunctorBaseList : Functor (Base.base (List α)) where
 instance instRecursiveList : Recursive (List α) where
   project := List.project
 
-partial def List.cataTR [Inhabited β]
+partial def List.cata [Inhabited β]
     (f : ListF α β → β) (n : List α) : β :=
   let x1 : ListF α (List α) := n.project
-  let g1 : List α → β := cataTR f
+  let g1 : List α → β := cata f
   let x2 : ListF α β := g1 <$> x1
   let x3 : β := f x2
   x3
 
-partial def List.cataTR' {α β : Type} [Nonempty β]
+@[specialize]
+partial def List.cataTR {α β : Type} [Nonempty β]
     (f : ListF α β → β) (n : List α) : β := cataTR'Aux f n |>.run
 where
+  @[specialize]
   cataTR'Aux [Nonempty β] (f : ListF α β → β) (n : List α) : TailRec β :=
-    let x1 : ListF α (List α) := n.project
     .flatMap
       (.suspend fun _ =>
-        let g1 : List α → TailRec β := cataTR'Aux f
-        let x1 : ListF α (List α) := x1
-        let x9 : TailRec (ListF α β) :=
-          match x1 with
+        match n.project with
           | .nil => .ret .nil
-          | .cons a b => .flatMap (g1 b) (fun b => .ret (.cons a b))
-        x9)
-      (fun (x2 : ListF α β) => .ret (f x2))
+          | .cons a b =>
+            .flatMap (cataTR'Aux f b) (fun b => .ret (.cons a b)))
+      (fun (x : ListF α β) => .ret (f x))
 
-        -- let x2 : ListF α (TailRec β) := g1 <$> x1
-
-
-#eval (List.range 1).cataTR' (match · with | .nil => 0 | .cons a b => a + b)
+set_option trace.profiler true
+#eval (List.range 10000).foldr (· + ·) 0
+#eval (List.range 10000).cataTR (match · with | .nil => 0 | .cons a b => a + b)
 
   -- let rec loop (x : (ListF α (ListF α β ⊕ β) ⊕ β)) : β :=
   --   match x with
