@@ -5,6 +5,7 @@ import SortingNetworkSearch.ExtraTheorems
 import SortingNetworkSearch.Layer
 import SortingNetworkSearch.ArrayExtras
 import SortingNetworkSearch.Mutation
+import SortingNetworkSearch.SVG
 
 structure Network (size : USize) where
   layers : Array Layer
@@ -251,4 +252,3 @@ def Network.toPursleyString (n : Network size) : String :=
     fun str (a, b) => str ++ s!"{a}:{b},"
   let result := result.dropRight 1 -- remove the trailing comma
   result
-

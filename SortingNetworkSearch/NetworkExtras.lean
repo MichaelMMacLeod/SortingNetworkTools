@@ -1,4 +1,5 @@
 import SortingNetworkSearch.Network
+import SortingNetworkSearch.SVGWidget
 
 def Network.fromSwapLayersList (layers : List (List Swap)) : Network size :=
   let layers := layers.map (·.toArray) |>.toArray
@@ -105,3 +106,103 @@ def goodNetworks : Array (Σ size : USize, Network size) :=
     ⟨14, nw14_52x9⟩,
     ⟨15, nw15_56x10⟩,
   ]
+
+open SVG in
+def Network.toSVG (n : Network size) : Node :=
+  let result := {
+    name := "svg"
+    attributes := .ofList [
+      ("xmlns", "http://www.w3.org/2000/svg"),
+      ("width", s!"{width}"),
+      ("height", s!"{height}"),
+      ("viewBox", s!"0 0 {vbWidth} {vbHeight}"),
+    ]
+    children := [
+      {
+        name := "rect"
+        attributes := .ofList [
+          ("width", s!"{width}"),
+          ("height", s!"{height}"),
+          ("fill", s!"{bgColor}"),
+        ]
+        children := []
+      }
+    ] ++ (swaps.toList.mapIdx Swap.toSVG).flatten
+      ++ channels
+  }
+  result
+where
+  swaps := n.toSwaps
+  hscale : Float := 10
+  vscale : Float := 20
+  hoffset := hscale
+  voffset := vscale
+  width := hoffset + hscale * swaps.size.toFloat
+  height := voffset + vscale * size.toFloat
+  vbWidth := width
+  vbHeight := height
+  bgColor := "white"
+  swapLineColor := "black"
+  swapLineStrokeWidth := 1
+  swapCircleColor := swapLineColor
+  swapCircleRadius := 3
+  channelColor := swapLineColor
+  channelStrokeWidth := 0.5
+  channels : List Node := List.ofFn (n := size.toNat) fun i =>
+    let i : Nat := i.toNat
+    let y := voffset + vscale * i.toFloat
+    {
+      name := "line"
+      attributes := .ofList [
+        ("x1", s!"{0}"),
+        ("x2", s!"{width}"),
+        ("y1", s!"{y}"),
+        ("y2", s!"{y}"),
+        ("stroke", s!"{swapLineColor}"),
+        ("stroke-width", s!"{swapLineStrokeWidth}"),
+      ]
+      children := []
+    }
+  Swap.toSVG (sIdx : Nat) (s : Swap) : List Node :=
+    let (a, b) := (min s.fst s.snd, max s.fst s.snd)
+    let sIdx := sIdx.toFloat
+    let a := a.toFloat
+    let b := b.toFloat
+    let x := hoffset + hscale * sIdx
+    let y1 := voffset + vscale * a
+    let y2 := voffset + vscale * b
+    let line := {
+      name := "line"
+      attributes := .ofList [
+        ("x1", s!"{x}"),
+        ("x2", s!"{x}"),
+        ("y1", s!"{y1}"),
+        ("y2", s!"{y2}"),
+        ("stroke", s!"{swapLineColor}"),
+        ("stroke-width", s!"{swapLineStrokeWidth}"),
+      ]
+      children := []
+    }
+    let c1 := {
+      name := "circle"
+      attributes := .ofList [
+        ("cx", s!"{x}"),
+        ("cy", s!"{y1}"),
+        ("r", s!"{swapCircleRadius}"),
+        ("fill", s!"{swapCircleColor}"),
+      ]
+      children := []
+    }
+    let c2 := {
+      name := "circle"
+      attributes := .ofList [
+        ("cx", s!"{x}"),
+        ("cy", s!"{y2}"),
+        ("r", s!"{swapCircleRadius}"),
+        ("fill", s!"{swapCircleColor}"),
+      ]
+      children := []
+    }
+    [line, c1, c2]
+#eval println! (.Algorithm.batcherOddEven : Network 10).toSVG.toString
+#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 24).toSVG.toString : SVGWidgetProps }

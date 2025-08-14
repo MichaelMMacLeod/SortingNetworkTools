@@ -4,9 +4,9 @@ import SortingNetworkSearch.Cata
 
 namespace SVG
 
-abbrev Tags := Std.HashMap String String
+abbrev Attributes := Std.HashMap String String
 
-def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
+def Attributes.toString (tags : Std.HashMap String String) : String := Id.run do
   let mut result := ""
   for (tag, value) in tags do
     result := result ++ s!"{tag}=\"{value}\" "
@@ -15,13 +15,13 @@ def Tags.toString (tags : Std.HashMap String String) : String := Id.run do
 
 structure Node where
   name : String
-  tags : Tags
+  attributes : Attributes
   children : List Node
   deriving Inhabited, Repr
 
 structure NodeF (α : Type u) where
   name : String
-  tags : Tags
+  attributes : Attributes
   children : List α
   deriving Inhabited, Repr
 
@@ -65,10 +65,10 @@ Creates a node with `depth` number of children, all nested inside each other
 (for 'matryoshka', see https://en.wikipedia.org/wiki/Matryoshka_doll.)
 -/
 def Node.matryoshka (depth : Nat) : Node := Id.run do
-  let mut result := { name := (0).repr, tags := ∅, children := [] }
+  let mut result := { name := (0).repr, attributes := ∅, children := [] }
   let mut depth := depth
   while 0 < depth do
-    result := { name := depth.repr, tags := ∅, children := [result] }
+    result := { name := depth.repr, attributes := ∅, children := [result] }
     depth := depth - 1
   result
 
@@ -83,25 +83,30 @@ deeply-nested nodes.
 def Node.toString (n : Node) : String :=
   let initialIndentLevel := 0
   let result := ""
-  n.cataTR toStringFunc |>.run (initialIndentLevel, result) |>.run
+  n.cataTR toStringAux |>.run (initialIndentLevel, result) |>.run
 where
-  toStringFunc : NodeF toStringAuxResult → toStringAuxResult :=
-    fun { name, tags, children } =>
+  /--
+  This function does the actual folding. It consumes/produces the accumulating
+  `String` result linearly, which means the result is produced through in-place
+  mutation.
+  -/
+  toStringAux : NodeF toStringAuxResult → toStringAuxResult :=
+    fun { name, attributes, children } =>
       let children := List.sequenceTrampoline children
       .flatMap children fun children =>
         .ret fun (indentLevel, result) =>
-          let space := if tags.size > 0 then " " else ""
+          let space := if attributes.size > 0 then " " else ""
           let indent1 := "".pushn ' ' indentLevel
           let indent2 := if children.isEmpty then "" else indent1
           let nl := if children.isEmpty then "" else "\n"
-          let result := result ++ s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}"
-          let indentLevel := indentLevel + 1
+          let result := result ++ s!"{indent1}<{name}{space}{Attributes.toString attributes}>{nl}"
+          let indentLevel := indentLevel + 2
           let result := children.foldl (init := Trampoline.ret result)
             fun result c =>
               .flatMap result fun result =>
                 .flatMap (c (indentLevel, result)) fun result =>
                   .ret (result ++ nl)
-          Trampoline.flatMap result fun result =>
+          .flatMap result fun result =>
             .ret (result ++ s!"{indent2}</{name}>")
 
 end SVG

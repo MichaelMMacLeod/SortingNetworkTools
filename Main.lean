@@ -27,6 +27,22 @@ def main (args : List String) : IO Unit := do
   let c3 := SVG.Node.matryoshka (size / 8)
   let n := { SVG.Node.matryoshka 0 with children := [c1, c2, c3] }
   println! n.toString
+  println! SVG.Node.toString {
+  name := "svg",
+  attributes := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
+  children := [
+    {
+      name := "rect",
+      attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
+      children := []
+    },
+    {
+      name := "rect",
+      attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
+      children := []
+    }
+  ]
+}
   -- let x2 : Trampoline (Nat × String → Trampoline String) := SVG.Node.cataTR SVG.toStringFunc'' n
   -- println! x2.run (0, "")
 
