@@ -49,4 +49,4 @@ where
           | .nil => .ret .nil
           | .cons a b =>
             .flatMap (cataTRAux f b) (fun b => .ret (.cons a b)))
-      (fun (x : ListF α β) => .ret (f x))
+      (fun x => .ret (f x))

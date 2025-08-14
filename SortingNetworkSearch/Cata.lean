@@ -13,6 +13,7 @@ NOTE: I haven't yet figured out how to make the `cataTR` variants generic. I
 ran into universe-bumping problems with implemeting `Traversable` for `Trampoline`
 that I need to resolve. This is why there is no non-type-specific `cataTR`.
 
+Example:
 ```
 import SortingNetworkSearch.ListF
 def sumFunc : ListF Nat Nat → Nat
