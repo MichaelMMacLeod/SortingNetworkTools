@@ -36,6 +36,7 @@
               nixfmt-rfc-style
               elan
               lld
+              valgrind
               (vscode-with-extensions.override {
                 vscode = vscodium;
                 vscodeExtensions = with vscode-extensions;
