@@ -22,10 +22,10 @@ def main (args : List String) : IO Unit := do
   -- let str := (List.range size).map (·.repr) |>.foldl (· ++ ·) ""
   -- println! str |>.get! 0
 
-  let c1 := SVG.mkDeepNode (size / 2)
-  let c2 := SVG.mkDeepNode (size / 5)
-  let c3 := SVG.mkDeepNode (size / 8)
-  let n := { SVG.mkDeepNode 0 with children := [c1, c2, c3] }
+  let c1 := SVG.Node.matryoshka (size / 2)
+  let c2 := SVG.Node.matryoshka (size / 5)
+  let c3 := SVG.Node.matryoshka (size / 8)
+  let n := { SVG.Node.matryoshka 0 with children := [c1, c2, c3] }
   println! n.toString
   -- let x2 : Trampoline (Nat × String → Trampoline String) := SVG.Node.cataTR SVG.toStringFunc'' n
   -- println! x2.run (0, "")

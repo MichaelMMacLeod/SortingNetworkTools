@@ -43,54 +43,28 @@ instance instFunctorBaseNode : Functor (Base.base Node) where
 instance instNodeRecursive : Recursive Node where
   project := Node.project
 
-def Array.sequenceTrampoline (xs : Array (Trampoline α)) : Trampoline (Array α) := Id.run do
-  let mut result := .ret <| .emptyWithCapacity xs.size
-  for x in xs do
-    result := .flatMap result fun result =>
-      match x with
-      | .ret a => .ret (result.push a)
-      | .suspend f =>
-        .flatMap (f ()) fun a =>
-          .ret (result.push a)
-      | .flatMap x f =>
-          .flatMap x fun t =>
-            .flatMap (f t) fun a =>
-              .ret (result.push a)
-  result
-
-def List.sequenceTrampoline (xs : List (Trampoline α)) : Trampoline (List α) := Id.run do
-  let mut result := .ret <| []
-  for x in xs do
-    result := .flatMap result fun result =>
-      match x with
-      | .ret a => .ret (result.cons a)
-      | .suspend f =>
-        .flatMap (f ()) fun a =>
-          .ret (result.cons a)
-      | .flatMap x f =>
-          .flatMap x fun t =>
-            .flatMap (f t) fun a =>
-              .ret (result.cons a)
-  result
-
+/--
+A tail-recursive bottom-up fold on Nodes. Won't cause stack overflows. See
+`Node.toString` for an example of its use, and `List.cataTR` for a `List`-specific
+version.
+-/
 partial def Node.cataTR {α : Type u} [Nonempty α] (f : NodeF α → α) (n : Node) : α :=
   cataTRAux f n |>.run
 where
   cataTRAux [Nonempty α] (f : NodeF α → α) (n : Node) : Trampoline α :=
     .flatMap
       (.suspend fun _ =>
-        let n := n.project
-        let x1 : List Node := n.children
-        let g1 : Node → Trampoline α := cataTRAux f
-        let x2 : List (Trampoline α) := x1.map g1
-        let x3 : Trampoline (List α) := List.sequenceTrampoline x2
-        let x4 : Trampoline (NodeF α) := .flatMap x3 fun children =>
-          .ret { n with children := children }
-        x4
-      )
-      (fun (x : NodeF α) => .ret (f x))
+        let result : List (Trampoline α) := n.project.children.map (cataTRAux f)
+        let result : Trampoline (List α) := result.sequenceTrampoline
+        .flatMap result fun children =>
+          .ret { n with children := children } )
+      fun (x : NodeF α) => .ret (f x)
 
-def mkDeepNode (depth : Nat) : Node := Id.run do
+/--
+Creates a node with `depth` number of children, all nested inside each other
+(for 'matryoshka', see https://en.wikipedia.org/wiki/Matryoshka_doll.)
+-/
+def Node.matryoshka (depth : Nat) : Node := Id.run do
   let mut result := { name := (0).repr, tags := ∅, children := [] }
   let mut depth := depth
   while 0 < depth do
@@ -98,34 +72,14 @@ def mkDeepNode (depth : Nat) : Node := Id.run do
     depth := depth - 1
   result
 
--- def toStringFunc : NodeF (Nat → Trampoline String) → (Nat → Trampoline String) :=
---   fun { name, tags, children } indentLevel =>
---     let children := children.map (· (indentLevel + 2))
---     let children := List.sequenceTrampoline children
---     .flatMap children fun children =>
---       let childStrs := children.foldl (· ++ · ++ "\n") ""
---       let space := if tags.size > 0 then " " else ""
---       let indent1 := "".pushn ' ' indentLevel
---       let indent2 := if children.isEmpty then "" else indent1
---       let nl := if children.isEmpty then "" else "\n"
---       .ret s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
-
--- def toStringFunc' : NodeF (Trampoline (Nat → String)) → (Trampoline (Nat → String)) :=
---   fun { name, tags, children } =>
---     let children := List.sequenceTrampoline children
---     .flatMap children fun children =>
---       .ret fun indentLevel =>
---         -- let children := #[children[0]?.getD (fun _ => "") <| indentLevel + 2]
---         let children := children.map (· (indentLevel + 2))
---         let childStrs := children.foldl (· ++ · ++ "\n") ""
---         let space := if tags.size > 0 then " " else ""
---         let indent1 := "".pushn ' ' indentLevel
---         let indent2 := if children.isEmpty then "" else indent1
---         let nl := if children.isEmpty then "" else "\n"
---         s!"{indent1}<{name}{space}{Tags.toString tags}>{nl}{childStrs}{indent2}</{name}>"
-
 abbrev toStringAuxResult := Trampoline (Nat × String → Trampoline String)
 
+/--
+Converts a `Node` into a `String`.
+
+Note: this function is stack-safe; it won't cause stack overflows, even for
+deeply-nested nodes.
+-/
 def Node.toString (n : Node) : String :=
   let initialIndentLevel := 0
   let result := ""
@@ -147,11 +101,7 @@ where
               .flatMap result fun result =>
                 .flatMap (c (indentLevel, result)) fun result =>
                   .ret (result ++ nl)
-          let result := Trampoline.flatMap result fun result =>
+          Trampoline.flatMap result fun result =>
             .ret (result ++ s!"{indent2}</{name}>")
-          result
-
--- #eval println! cata toStringFunc (mkDeepNode 5) 0 |>.run |>.get! 0
--- #eval println! (mkDeepNode 100).cataTR toStringFunc 0 |>.get! 0
 
 end SVG

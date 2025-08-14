@@ -27,7 +27,7 @@ instance instRecursiveList : Recursive (List α) where
   project := List.project
 
 /--
-A tail-recursive bottom-up fold on Lists. Won't cause stack overflows. This is more
+A tail-recursive right-to-left fold on Lists. Won't cause stack overflows. This is more
 or less just a slower version of `List.foldr` from the standard library. It's defined
 as an example of how to implement a tail-recursive `cata`.
 
@@ -50,3 +50,18 @@ where
           | .cons a b =>
             .flatMap (cataTRAux f b) (fun b => .ret (.cons a b)))
       (fun x => .ret (f x))
+
+def List.sequenceTrampoline (xs : List (Trampoline α)) : Trampoline (List α) := Id.run do
+  let mut result := .ret []
+  for x in xs do
+    result := .flatMap result fun result =>
+      match x with
+      | .ret a => .ret (result.cons a)
+      | .suspend f =>
+        .flatMap (f ()) fun a =>
+          .ret (result.cons a)
+      | .flatMap x f =>
+          .flatMap x fun t =>
+            .flatMap (f t) fun a =>
+              .ret (result.cons a)
+  result
