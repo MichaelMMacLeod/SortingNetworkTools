@@ -1,6 +1,7 @@
 import Lean
+import Lean.Widget.UserWidget
 
-open Lean Widget
+open Lean Widget Lean.Elab.Command Lean.Elab Lean.Widget
 
 @[widget_module]
 def svgWidget : Widget.Module where
@@ -15,6 +16,26 @@ def svgWidget : Widget.Module where
 structure SVGWidgetProps where
   svgString : String
   deriving Server.RpcEncodable
+
+syntax (name := networkCmd) "#network " term : command
+
+-- macro_rules
+--   | `(#network $n) =>
+--     `(#widget svgWidget with { svgString := ($n).toSVG.toString : SVGWidgetProps })
+-- | stx@`(#widget $s) => liftTermElabM do
+--     let wi : Expr ← elabWidgetInstanceSpec s
+--     let wi : WidgetInstance ← evalWidgetInstance wi
+--     savePanelWidgetInfo wi.javascriptHash wi.props stx
+--   | _ => throwUnsupportedSyntax
+-- set_option pp.rawOnError true
+@[command_elab networkCmd]
+def elabNetworkCmd : CommandElab
+  | stx@`(#network $n) => liftTermElabM do
+    let s : TSyntax `Lean.Widget.widgetInstanceSpec ← `(widgetInstanceSpec| svgWidget with { svgString := ($n).toSVG.toString : SVGWidgetProps })
+    let wi : Expr ← elabWidgetInstanceSpec s
+    let wi : WidgetInstance ← evalWidgetInstance wi
+    savePanelWidgetInfo wi.javascriptHash wi.props stx
+  | _ => throwUnsupportedSyntax
 
 -- @[widget_module]
 -- def helloWidget : Widget.Module where

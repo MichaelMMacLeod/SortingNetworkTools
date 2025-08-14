@@ -295,5 +295,6 @@ where
     }
     (sIdx, occupiedChannels, [line, c1, c2] ++ acc, vlineCount)
 
-#widget svgWidget with { svgString := nw15_56x10.consolidateLayers.toSVG.toString : SVGWidgetProps }
-#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 16).toSVG.toString : SVGWidgetProps }
+#network nw10_29x8
+#network (.Algorithm.batcherOddEven : Network 16)
+#network (.Algorithm.bubble : Network 16)
