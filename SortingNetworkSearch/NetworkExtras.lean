@@ -107,8 +107,59 @@ def goodNetworks : Array (Σ size : USize, Network size) :=
     ⟨15, nw15_56x10⟩,
   ]
 
-open SVG in
-def Network.toSVG (n : Network size) : Node :=
+def OccupiedChannels.mk (size : USize) : Array Bool := Array.replicate size.toNat false
+
+def OccupiedChannels.clear (occupiedChannels : Array Bool) : Array Bool := Id.run do
+  let mut occupiedChannels := occupiedChannels
+  for i in [0:occupiedChannels.size] do
+    occupiedChannels := occupiedChannels.set! i false
+  occupiedChannels
+
+def OccupiedChannels.addSwap (occupiedChannels : Array Bool) (swap : USize × USize) : Array Bool := Id.run do
+  let (a, b) := swap
+  let mut occupiedChannels := occupiedChannels
+  for i in [a.toNat:b.toNat+1] do
+    occupiedChannels := occupiedChannels.set! i true
+  occupiedChannels
+
+def OccupiedChannels.swapGoesOnNextLine (occupiedChannels : Array Bool) (swap : USize × USize) : Bool := Id.run do
+  let (a, b) := swap
+  for i in [a.toNat:b.toNat+1] do
+    if occupiedChannels[i]! then
+      return true
+  false
+
+def Swap.size (s : Swap) : Nat :=
+  let (a, b) := s
+  let (a, b) := (min a b, max a b)
+  b.toNat - a.toNat
+
+def Swap.lt (s1 : Swap) (s2 : Swap) : Bool :=
+  let s1Size := s1.size
+  let s2Size := s2.size
+  s1Size > s2Size ∨ (s1Size = s2Size ∧ s1.fst > s2.fst)
+
+def Network.toNicelyOrderedSwaps (n : Network size) : Array Swap := Id.run do
+  let mut result := #[]
+  for layer in n.layers do
+    let mut swaps := Layer.toSwapLayer layer |>.qsort (lt := Swap.lt)
+    while h : 0 < swaps.size do
+      let smallest := swaps[swaps.size - 1]
+      swaps := swaps.pop
+      result := result.push smallest
+      let mut occupiedChannels := OccupiedChannels.mk size
+      occupiedChannels := OccupiedChannels.addSwap occupiedChannels smallest
+      let mut i := 0
+      while h : i < swaps.size do
+        let swap := swaps[i]
+        if swap.size = smallest.size ∧ !OccupiedChannels.swapGoesOnNextLine occupiedChannels swap then
+          result := result.push swap
+          swaps := swaps.eraseIdx i
+        occupiedChannels := OccupiedChannels.addSwap occupiedChannels swap
+        i := i + 1
+  result
+
+def Network.toSVG (n : Network size) : SVG.Node :=
   let result := {
     name := "svg"
     attributes := .ofList [
@@ -127,17 +178,17 @@ def Network.toSVG (n : Network size) : Node :=
         ]
         children := []
       }
-    ] ++ (swaps.toList.mapIdx Swap.toSVG).flatten
+    ] ++ swapNodes
       ++ channels
   }
   result
 where
-  swaps := n.toSwaps
-  hscale : Float := 10
+  swaps := n.toNicelyOrderedSwaps
+  hscale : Float := 15
   vscale : Float := 20
   hoffset := hscale
   voffset := vscale
-  width := hoffset + hscale * swaps.size.toFloat
+  width := 2 * hoffset + hscale * numVerticalLines.toFloat
   height := voffset + vscale * size.toFloat
   vbWidth := width
   vbHeight := height
@@ -148,7 +199,7 @@ where
   swapCircleRadius := 3
   channelColor := swapLineColor
   channelStrokeWidth := 0.5
-  channels : List Node := List.ofFn (n := size.toNat) fun i =>
+  channels : List SVG.Node := List.ofFn (n := size.toNat) fun i =>
     let i : Nat := i.toNat
     let y := voffset + vscale * i.toFloat
     {
@@ -163,12 +214,44 @@ where
       ]
       children := []
     }
-  Swap.toSVG (sIdx : Nat) (s : Swap) : List Node :=
+  numVerticalLines := swapNodesAndVerticalLineCount.snd
+  swapNodes := swapNodesAndVerticalLineCount.fst
+  swapNodesAndVerticalLineCount : List SVG.Node × Nat :=
+    let (_, _, xs, vlineCount) := swaps.toList.foldl Swap.toSVG (0, Array.replicate size.toNat false, [], 0)
+    (xs, vlineCount)
+  swapGoesOnNextLine (occupiedChannels : Array Bool) (swap : USize × USize) : Bool := Id.run do
+    let (a, b) := swap
+    for i in [a.toNat:b.toNat+1] do
+      if occupiedChannels[i]! then
+        return true
+    false
+  Swap.toSVG (acc : Nat × Array Bool × List SVG.Node × Nat) (s : Swap) : Nat × Array Bool × List SVG.Node × Nat :=
+    let (sIdx, occupiedChannels, acc, vlineCount) := acc
     let (a, b) := (min s.fst s.snd, max s.fst s.snd)
-    let sIdx := sIdx.toFloat
+    let (sIdx, occupiedChannels, vlineCount) :=
+      if !swapGoesOnNextLine occupiedChannels (a, b) then
+        let occupiedChannels := Id.run do
+          let mut occupiedChannels := occupiedChannels
+          for i in [a.toNat:b.toNat+1] do
+            occupiedChannels := occupiedChannels.set! i true
+          occupiedChannels
+        (sIdx, occupiedChannels, vlineCount)
+      else
+        let occupiedChannels := Id.run do
+          let mut occupiedChannels := occupiedChannels
+          for i in [0:occupiedChannels.size] do
+            occupiedChannels := occupiedChannels.set! i false
+          occupiedChannels
+
+        let occupiedChannels := Id.run do
+          let mut occupiedChannels := occupiedChannels
+          for i in [a.toNat:b.toNat+1] do
+            occupiedChannels := occupiedChannels.set! i true
+          occupiedChannels
+        (sIdx + 1, occupiedChannels, vlineCount + 1)
     let a := a.toFloat
     let b := b.toFloat
-    let x := hoffset + hscale * sIdx
+    let x := hoffset + hscale * sIdx.toFloat
     let y1 := voffset + vscale * a
     let y2 := voffset + vscale * b
     let line := {
@@ -203,6 +286,6 @@ where
       ]
       children := []
     }
-    [line, c1, c2]
-#eval println! (.Algorithm.batcherOddEven : Network 10).toSVG.toString
-#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 24).toSVG.toString : SVGWidgetProps }
+    (sIdx, occupiedChannels, [line, c1, c2] ++ acc, vlineCount)
+
+#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 64).toSVG.toString : SVGWidgetProps }
