@@ -49,14 +49,14 @@ def Network.Algorithm.batcherOddEven : Network size := Id.run do
         j := j+2*k
       k := k/2
     p := p+p
-  Network.mk <| Layers.fromSwaps size.toNat swaps
+  .consolidateLayers <| .mk <| Layers.fromSwaps size.toNat swaps
 
 /--
 Returns a `Network` implementing Bubble sort.
 Reference: https://en.wikipedia.org/wiki/Bubble_sort.
 -/
 def Network.Algorithm.bubble : Network size :=
-  if size ≤ 1 then default else .mk <| ascending ++ (ascending.pop |>.reverse)
+  if size ≤ 1 then default else Network.mk <| ascending ++ (ascending.pop |>.reverse)
 where
   numAscending := (2 * (size - 2) + 1) / 2 + 1
   ascending := .ofFn (n := numAscending.toNat) fun i => Id.run do
@@ -139,24 +139,28 @@ def Swap.lt (s1 : Swap) (s2 : Swap) : Bool :=
   let s2Size := s2.size
   s1Size > s2Size ∨ (s1Size = s2Size ∧ s1.fst > s2.fst)
 
-def Network.toNicelyOrderedSwaps (n : Network size) : Array Swap := Id.run do
-  let mut result := #[]
+-- def Swaps.orderNicely (swaps : Array Swap) : Array Swap :=
+def Network.toNicelyOrderedSwapLayers (n : Network size) : Array SwapLayer := Id.run do
+  let mut result : Array SwapLayer := #[]
   for layer in n.layers do
+    let mut resultLayer : Array Swap := #[]
     let mut swaps := Layer.toSwapLayer layer |>.qsort (lt := Swap.lt)
+    swaps := dbgTraceVal swaps
     while h : 0 < swaps.size do
       let smallest := swaps[swaps.size - 1]
       swaps := swaps.pop
-      result := result.push smallest
+      resultLayer := resultLayer.push smallest
       let mut occupiedChannels := OccupiedChannels.mk size
       occupiedChannels := OccupiedChannels.addSwap occupiedChannels smallest
-      let mut i := 0
-      while h : i < swaps.size do
+      let mut i := swaps.size - 1
+      while h : 0 < i ∧ i < swaps.size do
         let swap := swaps[i]
         if swap.size = smallest.size ∧ !OccupiedChannels.swapGoesOnNextLine occupiedChannels swap then
-          result := result.push swap
+          resultLayer := resultLayer.push swap
           swaps := swaps.eraseIdx i
         occupiedChannels := OccupiedChannels.addSwap occupiedChannels swap
-        i := i + 1
+        i := i - 1
+    result := result.push resultLayer
   result
 
 def Network.toSVG (n : Network size) : SVG.Node :=
@@ -183,7 +187,7 @@ def Network.toSVG (n : Network size) : SVG.Node :=
   }
   result
 where
-  swaps := n.toNicelyOrderedSwaps
+  swaps : Array SwapLayer := n.toNicelyOrderedSwapLayers
   hscale : Float := 15
   vscale : Float := 20
   hoffset := hscale
@@ -214,10 +218,10 @@ where
       ]
       children := []
     }
-  numVerticalLines := swapNodesAndVerticalLineCount.snd
+  numVerticalLines := swapNodesAndVerticalLineCount.snd - 1
   swapNodes := swapNodesAndVerticalLineCount.fst
   swapNodesAndVerticalLineCount : List SVG.Node × Nat :=
-    let (_, _, xs, vlineCount) := swaps.toList.foldl Swap.toSVG (0, Array.replicate size.toNat false, [], 0)
+    let (xs, _, vlineCount) := swaps.foldl SwapLayer.toSVG ([], 0, 0)
     (xs, vlineCount)
   swapGoesOnNextLine (occupiedChannels : Array Bool) (swap : USize × USize) : Bool := Id.run do
     let (a, b) := swap
@@ -225,6 +229,10 @@ where
       if occupiedChannels[i]! then
         return true
     false
+  SwapLayer.toSVG (acc : List SVG.Node × Nat × Nat) (sl : SwapLayer) : List SVG.Node × Nat × Nat :=
+    let (acc, sIdx, vlineCount) := acc
+    let (sIdx, _, xs, vlineCount) := sl.foldl Swap.toSVG (sIdx, OccupiedChannels.mk size, [], vlineCount)
+    (acc ++ xs, sIdx + 1, vlineCount + 1)
   Swap.toSVG (acc : Nat × Array Bool × List SVG.Node × Nat) (s : Swap) : Nat × Array Bool × List SVG.Node × Nat :=
     let (sIdx, occupiedChannels, acc, vlineCount) := acc
     let (a, b) := (min s.fst s.snd, max s.fst s.snd)
@@ -288,4 +296,4 @@ where
     }
     (sIdx, occupiedChannels, [line, c1, c2] ++ acc, vlineCount)
 
-#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 64).toSVG.toString : SVGWidgetProps }
+#widget svgWidget with { svgString := (.Algorithm.batcherOddEven : Network 16).toSVG.toString : SVGWidgetProps }

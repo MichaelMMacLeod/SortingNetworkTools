@@ -45,3 +45,29 @@ def Layer.rotate (arr : Layer) (amount : Nat) : Layer :=
       |> Layer.toSwapLayer
       |>.map (fun (a, b) => (adjust a, adjust b))
       |> SwapLayer.toLayer arr.usize
+
+def Layer.canAccomodateSwap (l : Layer) (swap : Swap) : Bool :=
+  let (a, b) := swap
+  l[a]! = a ∧ l[b]! = b
+
+def Layer.addSwap (l : Layer) (swap : Swap) :=
+  let (a, b) := swap
+  let l := l.set! a.toNat b
+  let l := l.set! b.toNat a
+  l
+
+def Layer.consolidate (la : Layer) (lb : Layer) : Layer × Option Layer := Id.run do
+  let bswaps := Layer.toSwapLayer lb
+  let mut newBSwaps := Array.emptyWithCapacity bswaps.size
+  let mut la := la
+  for bs in bswaps do
+    if Layer.canAccomodateSwap la bs then
+      la := Layer.addSwap la bs
+    else
+      newBSwaps := newBSwaps.push bs
+  let lbOption :=
+    if newBSwaps.size = 0 then
+      none
+    else
+      some <| SwapLayer.toLayer la.usize newBSwaps
+  (la, lbOption)

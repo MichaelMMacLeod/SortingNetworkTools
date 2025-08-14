@@ -243,6 +243,22 @@ def Network.improve
           (n', g, failures)
     n.improve g (fuel - 1) lastFailures symmetric numMutations
 
+def Network.consolidateLayers (n : Network size) : Network size := Id.run do
+  let mut layers := n.layers
+  let mut i := layers.size - 1
+  while 1 < i do
+    let mut la := #[]
+    let mut lb := #[]
+    (layers, la) := layers.swapRemove! (i - 1) #[]
+    (layers, lb) := layers.swapRemove! i #[]
+    let mut lbOption := none
+    (la, lbOption) := Layer.consolidate la lb
+    layers := layers.set! (i - 1) la
+    if let some lbOptionLayer := lbOption then
+      layers := layers.set! i lbOptionLayer
+    i := i - 1
+  Network.mk layers
+
 /--
 Convert `n` to a `String` consumable by Brian Pursley's "sorting-network" visualization code:
 https://github.com/brianpursley/sorting-network
