@@ -5,7 +5,7 @@ import Lean.Widget.UserWidget
 Defines a widget for displaying SVG images in the Lean InfoView panel.
 
 To display sorting networks in the InfoView panel, see NetworkCommand.lean,
-which is a convenient way to use this widget.
+which defines `#network`, a more convenient way to use this widget.
 -/
 
 open Lean Widget
