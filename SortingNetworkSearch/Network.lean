@@ -6,6 +6,7 @@ import SortingNetworkSearch.Layer
 import SortingNetworkSearch.ArrayExtras
 import SortingNetworkSearch.Mutation
 import SortingNetworkSearch.SVG
+import SortingNetworkSearch.StringExtras
 
 structure Network (size : USize) where
   layers : Array Layer
@@ -259,6 +260,31 @@ def Network.consolidateLayers (n : Network size) : Network size := Id.run do
     i := i - 1
   Network.mk layers
 
+def Network.fromSwapLayersList (layers : List (List Swap)) : Network size :=
+  let layers := layers.map (·.toArray) |>.toArray
+  .fromSwapLayers layers
+
+def Layers.fromSwaps (size : Nat) (swaps : Array Swap) : Array Layer := Id.run do
+  let mut result := #[]
+  let mut layer := Array.range size |>.map (·.toUSize)
+  let mut occupied := Array.replicate size false
+  let mut i := 0
+  while h : i < swaps.size do
+    let (a, b) := swaps[i]
+    if occupied[a]! ∨ occupied[b]! then
+      result := result.push layer
+      layer := Array.range size |>.map (·.toUSize)
+      occupied := Array.replicate size false
+    else
+      layer := layer.set! a.toNat b
+      layer := layer.set! b.toNat a
+      occupied := occupied.set! a.toNat true
+      occupied := occupied.set! b.toNat true
+      i := i + 1
+      if i = swaps.size then
+        result := result.push layer
+  result
+
 /--
 Convert `n` to a `String` consumable by Brian Pursley's "sorting-network" visualization code:
 https://github.com/brianpursley/sorting-network
@@ -268,3 +294,39 @@ def Network.toPursleyString (n : Network size) : String :=
     fun str (a, b) => str ++ s!"{a}:{b},"
   let result := result.dropRight 1 -- remove the trailing comma
   result
+
+/--
+Converts a Pursley String (see `Network.toPursleyString`) to a `Network`, or, if that fails,
+returns a `String` that starts with the part that couldn't be parsed.
+-/
+def Network.fromPursleyString (s : String) : String ⊕ (Σ size : USize, Network size) := Id.run do
+  let mut swaps : Array Swap := #[]
+  let mut maxSwapIndex := 0
+  let mut s := s
+  while 0 < s.length do
+    match s.parseLeadingNat with
+    | none => return .inl s
+    | some (a, s') =>
+      s := s'
+      match s.parseLeadingChar ':' with
+      | none => return .inl s
+      | some s' =>
+        s := s'
+        match s.parseLeadingNat with
+        | none => return .inl s
+        | some (b, s') =>
+          s := s'
+          let a := a.toUSize
+          let b := b.toUSize
+          maxSwapIndex := max maxSwapIndex b
+          swaps := swaps.push (a, b)
+          match s.parseLeadingChar ',' with
+          | none => break
+          | some s' =>
+            s := s'
+  s := s.trim
+  if 0 < s.length then
+    return .inl s -- make sure there aren't any extra characters
+  let size := maxSwapIndex + 1
+  let n : Network size := Network.mk (Layers.fromSwaps size.toNat swaps)
+  .inr ⟨size, n⟩

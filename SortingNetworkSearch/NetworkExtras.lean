@@ -1,31 +1,6 @@
 import SortingNetworkSearch.Network
 import SortingNetworkSearch.SVGWidget
 
-def Network.fromSwapLayersList (layers : List (List Swap)) : Network size :=
-  let layers := layers.map (·.toArray) |>.toArray
-  .fromSwapLayers layers
-
-def Layers.fromSwaps (size : Nat) (swaps : Array Swap) : Array Layer := Id.run do
-  let mut result := #[]
-  let mut layer := Array.range size |>.map (·.toUSize)
-  let mut occupied := Array.replicate size false
-  let mut i := 0
-  while h : i < swaps.size do
-    let (a, b) := swaps[i]
-    if occupied[a]! ∨ occupied[b]! then
-      result := result.push layer
-      layer := Array.range size |>.map (·.toUSize)
-      occupied := Array.replicate size false
-    else
-      layer := layer.set! a.toNat b
-      layer := layer.set! b.toNat a
-      occupied := occupied.set! a.toNat true
-      occupied := occupied.set! b.toNat true
-      i := i + 1
-      if i = swaps.size then
-        result := result.push layer
-  result
-
 /--
 Returns a `Network` implementing Batcher odd-even mergesort.
 Reference: https://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort

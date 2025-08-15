@@ -1,6 +1,20 @@
-import SortingNetworkSearch.LFSR
-import SortingNetworkSearch.Network
-import SortingNetworkSearch.SVG
+import SortingNetworkSearch.Action
+
+def main (_args : List String) : IO Unit := do
+  let action : Action := .create (.batcherOddEven 16) .swapsString
+  let action : Action := .create (.batcherOddEven 64) .svg
+  -- let action : Action := .evolve none (some 3) (.inr 16)
+  -- let action : Action := .evolve none none (.inr 10)
+  -- let action : Action := .evolve none none (.inl <| .batcherOddEven 10)
+  action.main
+
+#check IO.Process.exit
+  -- let size := args[0]!.toNat!
+
+-- import SortingNetworkSearch.LFSR
+-- import SortingNetworkSearch.Network
+-- import SortingNetworkSearch.NetworkExtras
+-- import SortingNetworkSearch.SVG
 -- import SortingNetworkSearch.NetworkWidget
 
 -- @[noinline]
@@ -17,32 +31,32 @@ import SortingNetworkSearch.SVG
 --       (state, .cons a c))
 
 
-def main (args : List String) : IO Unit := do
-  let size := args[0]!.toNat!
-  -- let str := (List.range size).map (·.repr) |>.foldl (· ++ ·) ""
-  -- println! str |>.get! 0
+-- def main (args : List String) : IO Unit := do
+--   let size := args[0]!.toNat!
+--   -- let str := (List.range size).map (·.repr) |>.foldl (· ++ ·) ""
+--   -- println! str |>.get! 0
 
-  let c1 := SVG.Node.matryoshka (size / 2)
-  let c2 := SVG.Node.matryoshka (size / 5)
-  let c3 := SVG.Node.matryoshka (size / 8)
-  let n := { SVG.Node.matryoshka 0 with children := [c1, c2, c3] }
-  println! n.toString
-  println! SVG.Node.toString {
-  name := "svg",
-  attributes := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
-  children := [
-    {
-      name := "rect",
-      attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
-      children := []
-    },
-    {
-      name := "rect",
-      attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
-      children := []
-    }
-  ]
-}
+--   let c1 := SVG.Node.matryoshka (size / 2)
+--   let c2 := SVG.Node.matryoshka (size / 5)
+--   let c3 := SVG.Node.matryoshka (size / 8)
+--   let n := { SVG.Node.matryoshka 0 with children := [c1, c2, c3] }
+--   println! n.toString
+--   println! SVG.Node.toString {
+--   name := "svg",
+--   attributes := .ofList [("width", "536"), ("height", "840"), ("viewBox", "0 0 1610 840")],
+--   children := [
+--     {
+--       name := "rect",
+--       attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#fff")],
+--       children := []
+--     },
+--     {
+--       name := "rect",
+--       attributes := .ofList [("width", "1610"), ("height", "840"), ("fill", "#ccc")],
+--       children := []
+--     }
+--   ]
+-- }
   -- let x2 : Trampoline (Nat × String → Trampoline String) := SVG.Node.cataTR SVG.toStringFunc'' n
   -- println! x2.run (0, "")
 
@@ -71,7 +85,7 @@ def main (args : List String) : IO Unit := do
   -- let size := args[0]!.toNat!.toUSize
   -- let symmetric := args[1]! = "true"
   -- let mut lastFailures : Option UInt64 := .some 1
-  -- let mut n : Network size := default
+  -- let mut n : Network size := .Algorithm.batcherOddEven
   -- let mut g := mkStdGen (← IO.rand 0 USize.size)
   -- let mut i := 1
   -- let mut isCorrect := false
