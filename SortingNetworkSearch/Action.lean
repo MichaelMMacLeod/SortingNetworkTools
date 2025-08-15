@@ -31,7 +31,7 @@ structure EvolveConfig where
   timeoutSeconds : Option Nat
 
 inductive Action where
-  | create : ExistingNetwork → SerializationOut → Action
+  | convert : ExistingNetwork → SerializationOut → Action
   | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → ExistingNetwork ⊕ USize → Action
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
@@ -60,7 +60,7 @@ def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Net
     println! pursleyString
   else
     println! "Evolving from an empty network"
-    println! ""
+  println! ""
   while currentMs < stopTimeMs.getD (currentMs + 1) do
     let mut newNetwork := network
     let mut lastFailures' := none
@@ -84,7 +84,7 @@ def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Net
   println! "Evolution from seed {seed} finished after {elapsedSeconds} seconds"
 
 def Action.main : Action → IO Unit
-  | .create existingNetwork serializationOut => do
+  | convert existingNetwork serializationOut => do
     let ⟨_size, network⟩ ← existingNetwork.load
     match serializationOut with
     | .swapsString => IO.println network.toPursleyString

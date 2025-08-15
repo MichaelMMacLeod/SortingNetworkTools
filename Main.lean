@@ -1,10 +1,12 @@
 import SortingNetworkSearch.Action
 
 def main (_args : List String) : IO Unit := do
-  let action : Action := .create (.batcherOddEven 16) .swapsString
-  let action : Action := .create (.batcherOddEven 64) .svg
+  let action : Action := .convert (.batcherOddEven 16) .swapsString
+  let action : Action := .convert (.batcherOddEven 64) .svg
   -- let action : Action := .evolve none (some 3) (.inr 16)
-  -- let action : Action := .evolve none none (.inr 10)
+  let action : Action := .evolve none none (.inr 20)
+  let action : Action := .evolve none none (.inl <| .fromFile .swapsString "/tmp/nw1")
+  let action : Action := .convert (.fromFile .swapsString "/tmp/nw2") .svg
   -- let action : Action := .evolve none none (.inl <| .batcherOddEven 10)
   action.main
 
