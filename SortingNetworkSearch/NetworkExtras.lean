@@ -139,7 +139,6 @@ def Swap.lt (s1 : Swap) (s2 : Swap) : Bool :=
   let s2Size := s2.size
   s1Size > s2Size ∨ (s1Size = s2Size ∧ s1.fst > s2.fst)
 
--- def Swaps.orderNicely (swaps : Array Swap) : Array Swap :=
 def Network.toNicelyOrderedSwapLayers (n : Network size) : Array SwapLayer := Id.run do
   let mut result : Array SwapLayer := #[]
   for layer in n.layers do
@@ -294,7 +293,3 @@ where
       children := []
     }
     (sIdx, occupiedChannels, [line, c1, c2] ++ acc, vlineCount)
-
-#network nw10_29x8
-#network (.Algorithm.batcherOddEven : Network 16)
-#network (.Algorithm.bubble : Network 16)
