@@ -2,6 +2,7 @@ import SortingNetworkSearch.Action
 import SortingNetworkSearch.ExtraTheorems
 import Lean.Parser
 import Lean.Elab.GuardMsgs
+import Lean.Data.Trie
 
 inductive SubstringTree where
   | node : Array SubstringTree → SubstringTree
@@ -33,16 +34,19 @@ structure Parser.State.SavePoint where
   pos : String.Pos
   error : Option Error
 
-def errorAt (unexpected : Substring) (expected : String) : Parser.Error :=
+def errorAt (unexpected : Substring) (expected : Array String) : Parser.Error :=
   { unexpected
-    expected := #[expected]
+    expected
   }
 
 def Parser.State.errorAtCurrentPos (s : State) (expected : String) : Error :=
-  errorAt (Substring.mk s.input s.pos (s.input.next s.pos)) expected
+  errorAt (Substring.mk s.input s.pos (s.input.next s.pos)) #[expected]
+
+def Parser.State.errorsFrom (s : State) (sp : SavePoint) (expected : Array String) : Error :=
+  errorAt (Substring.mk s.input sp.pos s.pos) expected
 
 def Parser.State.errorFrom (s : State) (sp : SavePoint) (expected : String) : Error :=
-  errorAt (Substring.mk s.input sp.pos s.pos) expected
+  s.errorsFrom sp #[expected]
 
 def Parser.State.save (s : State) : SavePoint := { s with stackSize := s.stack.size }
 
@@ -179,18 +183,16 @@ def Parser.string (str : String) : Parser := fun s =>
     s.fail <| s.errorFrom sp str
   else s
 
+def Parser.word : Parser := token (·.isWhitespace)
+
 def Parser.symbol (sym : String) : Parser :=
   ignore ws >> fun s =>
     let sp := s.save
-    s |> token (·.isWhitespace) >> fun s =>
+    s |> word >> fun s =>
       let l := State.leaf s
       if l == sym.toSubstring then
         s
-      else s.fail <| s.errorFrom sp sym
-
-def dashStrs := "--"
-def singleDash := Substring.mk dashStrs 0 (dashStrs.next 0)
-def doubleDash := dashStrs.toSubstring
+      else s.fail <| s.errorFrom sp s!"'{sym}'"
 
 def Parser.sequence (ps : Array Parser) : Parser := aux 0
 where
@@ -228,7 +230,7 @@ def Parser.option (name : String) (args : Array Parser) (isLongDash : Bool := tr
 --       >> (State.mkNode · (args.size + 1))
 
 def Parser.nat : Parser :=
-  (ignore ws) >> fun s =>
+  ignore ws >> fun s =>
     let sp := s.save
     let s := token (Char.isWhitespace) s
     let mkError : State → State := fun s => s.fail (s.errorFrom sp "a natural number")
@@ -263,9 +265,28 @@ def Parser.algorithmNames :=
   symbol "bubble" <|>
   symbol "empty"
 
-def Parser.algorithmOption := option "algorithm" #[algorithmNames, nat] <|> option "load" #[]
+def Parser.algorithmArgs : Parser := sequence #[algorithmNames, nat]
+def Parser.loadArgs : Parser := ignore ws >> word
 
-def runAO : String → Option String := fun s => Parser.algorithmOption.run s |>.errorMessage
+open Lean.Data
+
+def Parser.cases (p : Parser) (cs : Array (String × Parser)) : Parser := fun s =>
+  let t := cs.foldl (init := Trie.empty) fun acc (str, p) => acc.insert str p
+  let sp := s.save
+  s |> p >> fun (s : State) =>
+    let l := s.leaf.toString
+    if let some p := t.find? l then
+      p s
+    else s.fail <| s.errorsFrom sp <| cs.map fun (a : String × Parser) => s!"'{a.fst}'"
+
+def Parser.optionsArray := #[
+  ("--algorithm", Parser.algorithmArgs),
+  ("--load", Parser.loadArgs),
+]
+
+def Parser.options := ignore ws >> cases word optionsArray
+
+def runAO : String → Option String := fun s => Parser.options.run s |>.errorMessage
 
 /--info: some "expected '--algorithm' or '--load' at '--algorithmbatcher'"-/
 #guard_msgs in #eval runAO "--algorithmbatcher 16"
