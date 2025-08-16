@@ -1,6 +1,7 @@
 import SortingNetworkSearch.Action
 import SortingNetworkSearch.ExtraTheorems
 import Lean.Parser
+import Lean.Elab.GuardMsgs
 
 inductive SubstringTree where
   | node : Array SubstringTree → SubstringTree
@@ -184,6 +185,7 @@ where
     if h : n < ps.size then
       s |> ps[n] >> aux (n+1)
     else s
+
 def Parser.option (name : String) (args : Array Parser) (isLongDash : Bool := true) :=
   let dash := if isLongDash then "--" else "-"
   ws >> fun s =>
@@ -240,7 +242,7 @@ def Parser.State.errorMessage (s : State) : Option String :=
     if s.atEnd then
       s!"unexpected end of command line arguments; expected {expected}"
     else
-      let unexpected := Substring.mk s.input error.unexpected.startPos s.input.endPos
+      let unexpected := Substring.mk s.input error.unexpected.startPos error.unexpected.stopPos
       s!"expected {expected} at '{unexpected}'"
 
 def Parser.algorithmNames :=
@@ -248,7 +250,24 @@ def Parser.algorithmNames :=
   symbol "bubble" <|>
   symbol "empty"
 
-def Parser.algorithmOption := option "algorithm" #[algorithmNames, nat]-- <|> option "load" #[] <|> option "load2" #[]
+def Parser.algorithmOption := option "algorithm" #[algorithmNames, nat] <|> option "load" #[]
+
+def runAO : String → Option String := fun s => Parser.algorithmOption.run s |>.errorMessage
+
+/--info: some "expected '--algorithm' or '--load' at '--algorithmbatcher'"-/
+#guard_msgs in #eval runAO "--algorithmbatcher 16"
+/--info: some "expected '--algorithm' or '--load' at '--algo"-/
+#guard_msgs in #eval runAO "--algo batcher 16"
+/--info: none-/
+#guard_msgs in #eval runAO "--algorithm batcher 16"
+/--info: none-/
+#guard_msgs in #eval runAO "--algorithm bubble 16"
+/--info: none-/
+#guard_msgs in #eval runAO "--algorithm empty 16"
+/--info: none-/
+#guard_msgs in #eval runAO "--algorithm unknown 16"
+/--info: some "expected 'batcher', 'bubble', or 'empty' at 'unknown'"-/
+#guard_msgs in #eval runAO "--algorithm batcher foo"
 
 open Parser in
 #eval
