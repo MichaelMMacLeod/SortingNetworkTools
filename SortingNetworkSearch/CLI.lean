@@ -254,11 +254,11 @@ def Parser.State.errorMessage (s : State) : Option String :=
           s!"{acc}, {e}"
       (i + 1, acc)
     let (_, expected) := expected
-    if s.atEnd then
-      s!"unexpected end of command line arguments; expected {expected}"
-    else
-      let unexpected := Substring.mk s.input error.unexpected.startPos error.unexpected.stopPos
-      s!"expected {expected} at '{unexpected}'"
+    -- if s.atEnd then
+    --   s!"unexpected end of command line arguments; expected {expected}"
+    -- else
+    let unexpected := Substring.mk s.input error.unexpected.startPos error.unexpected.stopPos
+    s!"expected {expected} at '{unexpected}'"
 
 def Parser.algorithmNames :=
   symbol "batcher" <|>
@@ -302,40 +302,6 @@ def runAO : String → Option String := fun s => Parser.options.run s |>.errorMe
 #guard_msgs in #eval runAO "--algorithm unknown 16"
 /--info: some "expected a natural number at 'foo'"-/
 #guard_msgs in #eval runAO "--algorithm batcher foo"
-
-open Parser in
-#eval
-  algorithmOption
-    |>.run "--algorithm bather"
-    |>.errorMessage
-
-partial def Parser.many (p : Parser) : Parser := p >> many p
-
-def Parser.shortOption (name : Substring) : Parser := option singleDash name
-def Parser.longOption (name : Substring) : Parser := option doubleDash name
-
-def Parser.takeN (p : Parser) (n : Nat) : Parser := fun s =>
-  if n = 0 then s else takeN p (n-1) (p s)
-
-def Parser.longOptionWithArgs (name : Substring) (numArgs : Nat) : Parser :=
-  longOption name
-    >> takeN (ws >> token (·.isWhitespace)) numArgs
-    >> (State.mkNode · (numArgs + 1 /- to get optName too, e.g., in '--optName a b c' -/))
-
-def Parser.subcommand (name : Substring) (subparser : Parser) : Parser :=
-  ws >> symbol name >> subparser >> (State.mkNode · 2 /- 1 for name, 1 for result of subparser -/)
-
-def Parser.algorithm : Parser := longOptionWithArgs "algorithm".toSubstring 2
-def Parser.load : Parser := longOptionWithArgs "load".toSubstring 1
-
-def Parser.create : Parser :=
-  subcommand "create".toSubstring (
-    longOptionWithArgs ""
-  )
-
-#eval Parser.run (input := "--myOption awd") (Parser.longOptionWithArgs "myOption".toSubstring 1)
-#eval Parser.run (input := "--myOption awd") (Parser.longOption "myOption".toSubstring)
-
 
 -- def USize.MAX := (2^System.Platform.numBits - 1).toUSize
 
