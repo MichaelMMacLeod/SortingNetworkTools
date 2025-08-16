@@ -172,8 +172,21 @@ def Parser.ignore (p : Parser) : Parser := fun s =>
   let initSize := s.stack.size
   s |> p >> fun s => State.shrink s initSize
 
+def Parser.string (str : String) : Parser := fun s =>
+  let sp := s.save
+  let s := takeWhileInside str.toSubstring s
+  if s.hasError then
+    s.fail <| s.errorFrom sp str
+  else s
+
 def Parser.symbol (sym : String) : Parser :=
-  (ignore ws) >> fun s => s |> takeWhileInside sym.toSubstring >> (State.pushLeaf · s.pos)
+  ignore ws >> fun s =>
+    let sp := s.save
+    s |> token (·.isWhitespace) >> fun s =>
+      let l := State.leaf s
+      if l == sym.toSubstring then
+        s
+      else s.fail <| s.errorFrom sp sym
 
 def dashStrs := "--"
 def singleDash := Substring.mk dashStrs 0 (dashStrs.next 0)
@@ -190,7 +203,7 @@ def Parser.option (name : String) (args : Array Parser) (isLongDash : Bool := tr
   let dash := if isLongDash then "--" else "-"
   ws >> fun s =>
     let sp := s.save
-    s |> ignore (symbol dash)
+    s |> ignore (string dash)
       >> (fun s =>
         let s := s |> symbol name >> mandatoryWs
         if s.hasError then
@@ -256,7 +269,7 @@ def runAO : String → Option String := fun s => Parser.algorithmOption.run s |>
 
 /--info: some "expected '--algorithm' or '--load' at '--algorithmbatcher'"-/
 #guard_msgs in #eval runAO "--algorithmbatcher 16"
-/--info: some "expected '--algorithm' or '--load' at '--algo"-/
+/--info: some "expected '--algorithm' or '--load' at '--algo'"-/
 #guard_msgs in #eval runAO "--algo batcher 16"
 /--info: none-/
 #guard_msgs in #eval runAO "--algorithm batcher 16"
@@ -264,9 +277,9 @@ def runAO : String → Option String := fun s => Parser.algorithmOption.run s |>
 #guard_msgs in #eval runAO "--algorithm bubble 16"
 /--info: none-/
 #guard_msgs in #eval runAO "--algorithm empty 16"
-/--info: none-/
-#guard_msgs in #eval runAO "--algorithm unknown 16"
 /--info: some "expected 'batcher', 'bubble', or 'empty' at 'unknown'"-/
+#guard_msgs in #eval runAO "--algorithm unknown 16"
+/--info: some "expected a natural number at 'foo'"-/
 #guard_msgs in #eval runAO "--algorithm batcher foo"
 
 open Parser in
