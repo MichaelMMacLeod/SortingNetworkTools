@@ -31,4 +31,4 @@ partial def Trampoline.run [Nonempty α] : Trampoline α → α
     match x with
     | .ret a => (f a).run
     | .suspend r => (Trampoline.flatMap (r ()) f).run
-    | .flatMap y g => (y.flatMap (fun q => .flatMap (g q) f)).run
+    | .flatMap y g => (y.flatMap (fun q => (g q).flatMap f)).run

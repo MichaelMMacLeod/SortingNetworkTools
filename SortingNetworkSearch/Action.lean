@@ -5,13 +5,13 @@ inductive SerializationIn where
   -- | listOfLayers
   -- | listOfSwapLayers
   -- | listOfSwaps
-  | swapsString
+  | list
 
 inductive SerializationOut where
   -- | listOfLayers
   -- | listOfSwapLayers
   -- | listOfSwaps
-  | swapsString
+  | list
   | svg
 
 inductive ExistingNetwork where
@@ -20,9 +20,9 @@ inductive ExistingNetwork where
   | fromFile : SerializationIn → System.FilePath → ExistingNetwork
 
 def ExistingNetwork.load : ExistingNetwork → IO (Σ size, Network size)
-  | .bubble size => pure ⟨size, .Algorithm.bubble⟩
-  | .batcherOddEven size => pure ⟨size, .Algorithm.batcherOddEven⟩
-  | .fromFile .swapsString filePath => do
+  | .bubble size => pure ⟨size, Network.Algorithm.bubble⟩
+  | .batcherOddEven size => pure ⟨size, Network.Algorithm.batcherOddEven⟩
+  | .fromFile .list filePath => do
     match Network.fromPursleyString (← IO.FS.readFile filePath) with
     | .inl s => throw (IO.Error.userError s!"loading network failed: parse error at '{s}'")
     | .inr sizeNetworkPair => pure sizeNetworkPair
@@ -87,7 +87,7 @@ def Action.main : Action → IO Unit
   | convert existingNetwork serializationOut => do
     let ⟨_size, network⟩ ← existingNetwork.load
     match serializationOut with
-    | .swapsString => IO.println network.toPursleyString
+    | .list => IO.println network.toPursleyString
     | .svg => IO.println network.toSVG.toString
   | .evolve seedOption timeoutSecondsOption existingNetworkOrSize => do
     let ⟨_size, network⟩ ← do
@@ -95,3 +95,4 @@ def Action.main : Action → IO Unit
       | .inl existingNetwork => existingNetwork.load
       | .inr size => pure ⟨size, default⟩
     network.evolve seedOption timeoutSecondsOption
+
