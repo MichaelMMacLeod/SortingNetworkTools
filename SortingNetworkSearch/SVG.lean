@@ -57,7 +57,7 @@ where
         let result : List (Trampoline α) := n.project.children.map (cataTRAux f)
         let result : Trampoline (List α) := result.sequenceTrampoline
         .flatMap result fun children =>
-          .ret { n with children := children } )
+          .ret { n with children := children })
       fun (x : NodeF α) => .ret (f x)
 
 /--

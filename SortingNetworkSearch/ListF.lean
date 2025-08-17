@@ -61,7 +61,7 @@ def List.sequenceTrampoline (xs : List (Trampoline α)) : Trampoline (List α) :
         .flatMap (f ()) fun a =>
           .ret (result.cons a)
       | .flatMap x f =>
-          .flatMap x fun t =>
-            .flatMap (f t) fun a =>
-              .ret (result.cons a)
+        .flatMap x fun t =>
+          .flatMap (f t) fun a =>
+            .ret (result.cons a)
   result

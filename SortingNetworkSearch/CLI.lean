@@ -4,11 +4,7 @@ import Lean.Parser
 import Lean.Elab.GuardMsgs
 import Lean.Data.Trie
 import Init.Data.Format.Basic
-
-inductive SubstringTree where
-  | node : Array SubstringTree → SubstringTree
-  | leaf : Substring → SubstringTree
-  deriving Repr, Inhabited
+import SortingNetworkSearch.SubstringTree
 
 structure Parser.Error where
   unexpected : Substring
@@ -482,7 +478,7 @@ def Cli.Program.parser (pg : Cli.Program) : Parser :=
     s |> show Parser from
       Parser.switch commandOptions >> fun s =>
         let s := s.mkNode (s.stack.size - 2)
-        s
+        s.mkNode 3
 
 def sns : Cli.Program := {
   executableName := "sns"
