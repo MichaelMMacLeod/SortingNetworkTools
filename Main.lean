@@ -1,16 +1,21 @@
-import SortingNetworkSearch.Action
+import SortingNetworkSearch.CLI
 
-def main (_args : List String) : IO Unit := do
-  let action : Action := .convert (.batcherOddEven 16) .list
-  let action : Action := .convert (.batcherOddEven 64) .svg
-  -- let action : Action := .evolve none (some 3) (.inr 16)
-  let action : Action := .evolve none none (.inr 20)
-  let action : Action := .evolve none none (.inl <| .fromFile .list "/tmp/nw1")
-  let action : Action := .convert (.fromFile .list "/tmp/nw2") .svg
-  -- let action : Action := .evolve none none (.inl <| .batcherOddEven 10)
-  action.main
+def main (args : List String) : IO Unit := do
+  let args := args.foldl (s!"{·} {·}") ""
+  let s := sns.parser.run args
+  println! repr s
+  -- match sns.parser.run args with
+  -- | s => sorry
+--   let action : Action := .convert (.batcherOddEven 16) .list
+--   let action : Action := .convert (.batcherOddEven 64) .svg
+--   -- let action : Action := .evolve none (some 3) (.inr 16)
+--   let action : Action := .evolve none none (.inr 20)
+--   let action : Action := .evolve none none (.inl <| .fromFile .list "/tmp/nw1")
+--   let action : Action := .convert (.fromFile .list "/tmp/nw2") .svg
+--   -- let action : Action := .evolve none none (.inl <| .batcherOddEven 10)
+--   action.main
 
-#check IO.Process.exit
+-- #check IO.Process.exit
   -- let size := args[0]!.toNat!
 
 -- import SortingNetworkSearch.LFSR

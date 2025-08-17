@@ -264,14 +264,18 @@ def Parser.cases (cs : Array (String × Bool × Parser)) (onMatchFail : Unit →
     else onMatchFail ()
 
 def Parser.switch (cases : Array (Parser × Parser)) : Parser := fun s => Id.run do
+  let mut unexpectedOption : Option Substring := none
   let mut expected : Array String := #[]
   for h : i in 0...cases.size do
     let s := cases[i].fst s
     if let some error := s.error then
+      if let none := unexpectedOption then
+        unexpectedOption := error.unexpected -- just take the first failing position
       expected := expected ++ error.expected
     else
       return cases[i].snd s
-  s.fail <| s.errorsAtCurrentPos expected
+  let unexpected : Substring := unexpectedOption.getD <| Substring.mk s.input s.pos (s.input.next s.pos)
+  s.fail <| { unexpected, expected }
 
 def Parser.options (optionsArray : Array (String × Bool × Parser)) : Parser := ignore ws >> fun s =>
   let sp := s.save
@@ -457,19 +461,13 @@ def Cli.Arg.parser (a : Cli.Arg) : Parser :=
   | 1 => valueParsers[0]
   | _ => fun s =>
     let sp := s.save
-    let mkError : Parser := fun s =>
-      let s := s.fail <| s.errorsFrom sp <| a.values.filterMap fun v =>
-        match v with
-        | .vague { description := .any, .. } => none
-        | .vague { description := .satisfies _ label, .. } => label
-        | .exact v => v.value
-      s
-    let p : Parser :=
+    let mkError : Parser := fun s => s.fail <| s.errorsFrom sp #[]
+    s |> show Parser from
       valueParsers.foldl (init := mkError) fun acc vp => vp <|> acc
-    p s
 
 def Cli.Option.parsers (o : Cli.Option) : Parser × Parser :=
   let argParser := Parser.sequence <| o.args.map (·.parser)
+  let argParser := argParser >> fun s => s.mkNode (o.args.size + 1)
   (o.name.parser, argParser)
 
 def Cli.Command.parsers (c : Cli.Command) : Parser × Parser :=
@@ -479,7 +477,12 @@ def Cli.Command.parsers (c : Cli.Command) : Parser × Parser :=
 def Cli.Program.parser (pg : Cli.Program) : Parser :=
   let globalOptions := pg.globalOptions.foldl (·.push ·.parsers) #[]
   let commandOptions := pg.commands.foldl (·.push ·.parsers) #[]
-  Parser.switch globalOptions >> Parser.switch commandOptions
+  Parser.switch globalOptions >> fun s =>
+    let s := s.mkNode s.stack.size
+    s |> show Parser from
+      Parser.switch commandOptions >> fun s =>
+        let s := s.mkNode (s.stack.size - 2)
+        s
 
 def sns : Cli.Program := {
   executableName := "sns"
@@ -679,9 +682,21 @@ def Cli.Program.globalHelpFmt (p : Program) : Format :=
     else result
   result
 
-#eval sns.globalHelpFmt
-#eval "A" ++ line ++ nest 4 "B" ++ "C"
-#eval "A" ++ line ++ align true ++ nest 4 "B" ++ "C"
-
-/-info: some "expected 'svg' or 'list' at 'idk'"-/
+/--info: some "expected 'svg' or 'list' at 'idk'"-/
 #guard_msgs in #eval sns.parser.run "-a batcher 16 convert --format idk" |>.errorMessage
+/--info: none-/
+#guard_msgs in #eval sns.parser.run "-a batcher 16 convert --format list" |>.errorMessage
+/--info: none-/
+#guard_msgs in #eval sns.parser.run "--algorithm batcher 16 convert --format list" |>.errorMessage
+/--info: some "expected 'convert', 'evolve', or 'verify' at '--load'"-/
+#guard_msgs in #eval sns.parser.run "--algorithm batcher 16 --load nw.txt" |>.errorMessage
+/--info: some "expected 'convert', 'evolve', or 'verify' at '--load'"-/
+#guard_msgs in #eval sns.parser.run "-a batcher 16 --load nw.txt" |>.errorMessage
+/--info: some "expected 'convert', 'evolve', or 'verify' at '-l'"-/
+#guard_msgs in #eval sns.parser.run "-a batcher 16 -l nw.txt" |>.errorMessage
+/--info: some "expected 'convert', 'evolve', or 'verify' at '-l'"-/
+#guard_msgs in #eval sns.parser.run "--algorithm batcher 16 -l nw.txt" |>.errorMessage
+/--info: some "expected '--algorithm' or '--load' at 'convert'"-/
+#guard_msgs in #eval sns.parser.run "convert --format svg" |>.errorMessage
+
+-- def Cli.Program.Parser.Output.toAction (s : SubstringTree) :
