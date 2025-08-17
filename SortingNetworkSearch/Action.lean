@@ -1,11 +1,12 @@
 import SortingNetworkSearch.NetworkExtras
-import Init.System.IO
+import SortingNetworkSearch.SubstringTree
 
 inductive SerializationIn where
   -- | listOfLayers
   -- | listOfSwapLayers
   -- | listOfSwaps
   | list
+deriving Inhabited
 
 inductive SerializationOut where
   -- | listOfLayers
@@ -13,11 +14,13 @@ inductive SerializationOut where
   -- | listOfSwaps
   | list
   | svg
+deriving Inhabited
 
 inductive ExistingNetwork where
   | bubble : USize → ExistingNetwork
   | batcherOddEven : USize → ExistingNetwork
   | fromFile : SerializationIn → System.FilePath → ExistingNetwork
+deriving Inhabited
 
 def ExistingNetwork.load : ExistingNetwork → IO (Σ size, Network size)
   | .bubble size => pure ⟨size, Network.Algorithm.bubble⟩
@@ -27,12 +30,10 @@ def ExistingNetwork.load : ExistingNetwork → IO (Σ size, Network size)
     | .inl s => throw (IO.Error.userError s!"loading network failed: parse error at '{s}'")
     | .inr sizeNetworkPair => pure sizeNetworkPair
 
-structure EvolveConfig where
-  timeoutSeconds : Option Nat
-
 inductive Action where
   | convert : ExistingNetwork → SerializationOut → Action
   | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → ExistingNetwork ⊕ USize → Action
+deriving Inhabited
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
   let startMs ← IO.monoMsNow
@@ -96,3 +97,7 @@ def Action.main : Action → IO Unit
       | .inr size => pure ⟨size, default⟩
     network.evolve seedOption timeoutSecondsOption
 
+-- def Action.fromParsedCLI (cli : Array SubstringTree) : Action :=
+--   match cli[1]!.toString with
+--   | "convert" => sorry
+--   | _ => unreachable!
