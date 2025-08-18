@@ -445,12 +445,12 @@ def Cli.Arg.valuesWithTextContent (a : Cli.Arg) : Array Cli.Arg.Value :=
     | .exact _ => true
 
 def Cli.Arg.Value.parser : Cli.Arg.Value → Parser
-| vague { description := .any, .. } => fun s => s
+| vague { description := .any, .. } => Parser.word
 | vague { description := .satisfies p description, ..} => Parser.wordSatisfying p description
 | exact v => Parser.symbol v.value
 
 def Cli.Arg.parser (a : Cli.Arg) : Parser :=
-  let valueParsers : Array Parser := a.values.map (·.parser)
+  let valueParsers : Array Parser := a.values.map (Parser.ws >> ·.parser)
   match h : valueParsers.size with
   | 0 => fun s => s
   | 1 => valueParsers[0]
