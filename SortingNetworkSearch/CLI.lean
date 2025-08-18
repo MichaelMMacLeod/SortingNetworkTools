@@ -1,4 +1,3 @@
-import SortingNetworkSearch.Action
 import SortingNetworkSearch.ExtraTheorems
 import Lean.Parser
 import Lean.Elab.GuardMsgs

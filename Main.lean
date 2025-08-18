@@ -1,4 +1,5 @@
 import SortingNetworkSearch.CLI
+import SortingNetworkSearch.Action
 
 def main (args : List String) : IO Unit := do
   let args := args.foldl (s!"{·} {·}") ""
@@ -6,4 +7,7 @@ def main (args : List String) : IO Unit := do
   if let some error := s.errorMessage then
     println! error
   else
-    println! s.stack.back!.toString
+    let action := Action.fromParsedCLI s.stack.back!
+    if let some action := action
+    then action.main
+    else unreachable!
