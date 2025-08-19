@@ -16,25 +16,33 @@ inductive SerializationOut where
   | svg
 deriving Inhabited
 
-inductive ExistingNetwork where
-  | empty : USize → ExistingNetwork
-  | bubble : USize → ExistingNetwork
-  | batcherOddEven : USize → ExistingNetwork
-  | fromFile : System.FilePath → ExistingNetwork
-deriving Inhabited
+inductive Algorithm where
+| empty
+| bubble
+| batcher
+deriving Inhabited, Repr
 
-def ExistingNetwork.load : ExistingNetwork → IO (Σ size, Network size)
-  | .empty size => pure ⟨size, default⟩
-  | .bubble size => pure ⟨size, Network.Algorithm.bubble⟩
-  | .batcherOddEven size => pure ⟨size, Network.Algorithm.batcherOddEven⟩
-  | .fromFile filePath => do
-    match Network.fromPursleyString (← IO.FS.readFile filePath) with
-    | .inl s => throw (IO.Error.userError s!"loading network failed: parse error at '{s}'")
-    | .inr sizeNetworkPair => pure sizeNetworkPair
+inductive NetworkSource where
+| algorithm : Algorithm → (size : USize) → NetworkSource
+| fromFile : System.FilePath → NetworkSource
+deriving Inhabited, Repr
+
+def NetworkSource.load : NetworkSource → IO (Σ size, Network size)
+| .algorithm a size =>
+  let n :=
+    match a with
+    | .empty => default
+    | .bubble => Network.Algorithm.bubble
+    | .batcher => Network.Algorithm.batcherOddEven
+  pure ⟨size, n⟩
+| .fromFile filePath => do
+  match Network.fromPursleyString (← IO.FS.readFile filePath) with
+  | .inl s => throw (IO.Error.userError s!"loading network failed: parse error at '{s}'")
+  | .inr sizeNetworkPair => pure sizeNetworkPair
 
 inductive Action where
-  | convert : ExistingNetwork → SerializationOut → Action
-  | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → ExistingNetwork → Action
+  | convert : NetworkSource → SerializationOut → Action
+  | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → NetworkSource → Action
 deriving Inhabited
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
@@ -96,18 +104,20 @@ def Action.main : Action → IO Unit
     let ⟨_size, network⟩ ← existingNetwork.load
     network.evolve seedOption timeoutSecondsOption
 
-def ExistingNetwork.fromParsedCli (cli : SubstringTree) : Option ExistingNetwork :=
+def ExistingNetwork.fromParsedCli (cli : SubstringTree) : Option NetworkSource :=
   match cli with
   | .node #[.leaf algorithmOption, .leaf a, .leaf size] => do
     let size ← size.toNat?
     let size := size.toUSize
     match algorithmOption.toString with
     | "-a" | "--algorithm" =>
-      match a.toString with
-      | "bubble" => some (.bubble size)
-      | "batcher" => some (.batcherOddEven size)
-      | "empty" => some (.empty size)
-      | _ => unreachable!
+      let a :=
+        match a.toString with
+        | "bubble" => .bubble
+        | "batcher" => .batcher
+        | "empty" => .empty
+        | _ => unreachable!
+      pure <| .algorithm a size
     | _ => none
   | .node #[.leaf loadOption, .leaf file] =>
     match loadOption.toString with
@@ -139,5 +149,7 @@ def Action.fromParsedCLI (cli : SubstringTree) : Option Action :=
         let serializationOut ← SerializationOut.fromParsedCli formatOption
         some (.convert existingNetwork serializationOut)
       | _ => none
-    | _ => sorry
+    -- | "evolve" =>
+      -- match commandOptions with/
+    | _ => panic! "not yet implemented"
   | _ => none

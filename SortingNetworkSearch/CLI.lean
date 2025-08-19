@@ -573,7 +573,38 @@ def sns : Cli.Program := {
     },
     { name := "evolve"
       description := "Search for more efficient networks through repeated mutation"
-      options := #[]
+      options := #[
+        { name := .shortAndLong "s" "seed"
+          description := "Select pseudorandom number generator seed"
+          args := #[
+            { name := "seed"
+              description := none
+              values := #[
+                .vague {
+                  examples := #["0", "1", "2", "3"]
+                  description := .satisfies (·.isNat) "natural number"
+                }
+              ]
+            },
+          ]
+          examples := #[]
+        },
+        { name := .shortAndLong "t" "timeout"
+          description := "Max evolution time"
+          args := #[
+            { name := "seconds"
+              description := none
+              values := #[
+                .vague {
+                  examples := #["10", "30", "600"]
+                  description := .satisfies (·.isNat) "natural number"
+                }
+              ]
+            },
+          ]
+          examples := #[]
+        },
+      ]
       examples := #[]
     },
     { name := "verify"

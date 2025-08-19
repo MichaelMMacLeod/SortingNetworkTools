@@ -1,0 +1,299 @@
+import SortingNetworkSearch.Action
+
+inductive Error where
+| unknown
+| expected : Array String → Error
+deriving Repr
+
+def Error.append (e₁ e₂ : Error) : Error :=
+  match (e₁, e₂) with
+  | (.unknown, .unknown) => .unknown
+  | (.expected es, .unknown) => .expected es
+  | (.unknown, .expected es) => .expected es
+  | (.expected es₁, .expected es₂) => .expected <| es₁ ++ es₂
+
+instance : Append Error where
+  append := Error.append
+
+abbrev Parser α := Substring → Except Error (α × Substring)
+
+def Parser.bind (p : Parser α) (f : α → Parser β) : Parser β := fun s => do
+  let (a, s) ← p s
+  f a s
+
+def Parser.pure (a : α) : Parser α := fun s => .ok (a, s)
+
+instance : Monad Parser where
+  pure := Parser.pure
+  bind := Parser.bind
+
+def Parser.andThen (pa : Parser α) (pb : Unit → Parser β) : Parser β := do
+  let _ ← pa
+  let b ← pb ()
+  pure b
+
+instance : AndThen (Parser α) where
+  andThen := Parser.andThen
+
+instance : HAndThen (Parser α) (Parser β) (Parser β) where
+  hAndThen := Parser.andThen
+
+structure Opt α where
+  parse : Parser α
+
+def Opt.map (f : α → β) (o : Opt α) : Opt β :=
+  { parse s := do
+      let (a, s) ← o.parse s
+      pure (f a, s)
+  }
+
+instance : Functor Opt where
+  map := Opt.map
+
+inductive Dep : Type u → Type (u+1) where
+| nil : Option α → Dep α
+| opt : Opt α → Dep α
+| alt : Dep α → (Unit → Dep α) → Dep α
+| mult : Dep (x → α) → (Unit → Dep x) → Dep α
+| bind : Dep x → (x → Dep α) → Dep α
+
+def Dep.map (f : α → β) : Dep α → Dep β
+| nil a => .nil (f <$> a)
+| opt o => .opt (f <$> o)
+| alt d₁ d₂ => .alt (d₁.map f) (fun _ => (d₂ ()).map f)
+| mult g dx => .mult (g.map (fun xa => f ∘ xa)) dx
+| bind d xda => .bind d (fun x => (xda x).map f)
+
+instance : Functor Dep where
+  map := Dep.map
+
+def Dep.pure (a : α) : Dep α := .nil (.some a)
+def Dep.seq (d : Dep (α → β)) (da : Unit → Dep α) : Dep β := .mult d da
+
+instance : Applicative Dep where
+  pure := Dep.pure
+  seq := Dep.seq
+
+instance : Alternative Dep where
+  failure := .nil none
+  orElse := Dep.alt
+
+def Dep.run (d : Dep α) (s : Substring) : Except Error (α × Substring) :=
+  match d with
+  | .nil (.some a) => .ok (a, s)
+  | .nil .none => .error .unknown
+  | .opt o => o.parse s
+  | .alt d₁ d₂ =>
+    match d₁.run s with
+    | .ok (a, s) => .ok (a, s)
+    | .error e₁ =>
+      match (d₂ ()).run s with
+      | .ok (a, s) => .ok (a, s)
+      | .error e₂ => .error (e₁ ++ e₂)
+  | .mult dxa dx => do
+    let (a, s) ← dxa.run s
+    let (x, s) ← dx () |>.run s
+    .ok (a x, s)
+  | .bind dx dxa => do
+    let (x, s) ← dx.run s
+    dxa x |>.run s
+
+partial def takeUntil (isStopChar : Char → Bool) : Parser Substring := fun s =>
+  let (a, s) := takeUntilAux isStopChar s.startPos s
+  .ok (a, s)
+where
+  takeUntilAux (isStopChar : Char → Bool) (startPos : String.Pos) (s : Substring) : Substring × Substring :=
+    if s.isEmpty then
+      (Substring.mk s.str startPos s.startPos, s)
+    else
+      let c := s.str.get! s.startPos
+      if isStopChar c then
+        (Substring.mk s.str startPos s.startPos, s)
+      else
+        takeUntilAux isStopChar startPos (s.drop 1)
+
+def token : Parser Substring := takeUntil (·.isWhitespace)
+
+def ws : Parser Substring := takeUntil (!·.isWhitespace)
+
+def ignore (p : Parser α) : Parser Unit := fun s => do
+  let (_, s) ← p s
+  .ok ((), s)
+
+def word : Parser Substring := ws >> token
+
+def symbol (str : String) : Parser Substring := fun s => do
+  let (a, s) ← word s
+  if str.toSubstring == a
+  then .ok (a, s)
+  else .error (.expected #[str])
+
+def Parser.map (p : Parser α) (f : α → β) : Parser β := do
+  let a ← p
+  pure (f a)
+
+def bubble : Dep Algorithm := .opt { parse := symbol "bubble" |>.map fun _ => .bubble }
+def batcher : Dep Algorithm := .opt { parse := symbol "batcher" |>.map fun _ => .bubble }
+def empty : Dep Algorithm := .opt { parse := symbol "empty" |>.map fun _ => .bubble }
+
+def Parser.nat : Parser Nat := do
+  let w ← word
+  if let some n := w.toNat?
+  then pure n
+  else fun _ => .error (.expected #["a natural number"])
+
+def Parser.usize : Parser USize := Nat.toUSize <$> Parser.nat
+
+def size : Dep USize := .opt { parse := Parser.usize }
+
+def algorithmFlag : Dep Substring := .opt { parse := symbol "--algorithm" }
+
+def algo : Dep Algorithm := bubble <|> batcher <|> empty
+
+def algorithm : Dep NetworkSource := NetworkSource.algorithm <$> algo <*> size
+
+def algorithmOption : Dep NetworkSource := .bind algorithmFlag fun _ => algorithm
+
+def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word }
+
+def fromFile : Dep NetworkSource := NetworkSource.fromFile <$> filePath
+
+def loadFlag : Dep Substring := .opt { parse := symbol "--load" }
+
+def loadOption : Dep NetworkSource := .bind loadFlag fun _ => fromFile
+
+def networkSource : Dep NetworkSource := algorithmOption <|> loadOption
+
+#eval networkSource.run "--algorithm batcher 3a".toSubstring
+#eval networkSource.run "--load nw.txt".toSubstring
+
+-- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
+-- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
+-- def empty : Dep Algorithm := .satisfies (if ·.toString == "empty" then Algorithm.empty else none)
+-- def size : Dep USize := .satisfies (if let some n := ·.toNat? then n.toUSize else none)
+
+-- structure DepM r where
+--   runDepM : (r → Dep x) → Dep x
+
+-- def DepM.pure (x : r) : DepM r := { runDepM := fun k => k x }
+-- def DepM.bind (f : DepM α) (g : (α → DepM β)) : DepM β :=
+--   { runDepM := fun k => f.runDepM (fun x => (g x).runDepM k) }
+
+-- instance : Monad DepM where
+--   pure := DepM.pure
+--   bind := DepM.bind
+
+-- def DepM.seq (dab : DepM (α → β)) (da : (Unit → DepM α)) : DepM β :=
+--   dab.bind fun x1 =>
+--     (da ()).bind fun x2 =>
+--       pure (x1 x2)
+
+-- instance : Applicative DepM where
+--   pure := DepM.pure
+--   seq := DepM.seq
+
+-- def DepM.map (f : α → β) (d : DepM α) : DepM β :=
+
+
+-- instance : Functor DepM where
+--   map := DepM.map
+
+
+
+-- class FromSubstring (α : Type) where
+--   fromSubstring : Substring → Option α
+
+-- instance : FromSubstring Nat where
+--   fromSubstring := Substring.toNat?
+
+-- -- A variable, such 'foo' in '--myOption foo'
+-- structure Var (α : Type) [FromSubstring α] where
+
+
+-- structure Flag where
+
+-- structure Cmd where
+
+-- -- inductive Dep (α : Type) [FromSubstring α] where
+-- -- | symbol : String → Dep α
+-- -- | nat : Dep Nat
+-- -- | var : Var α → Dep α
+-- -- | flag : Flag → Dep α
+-- -- | cmd : Cmd → Dep α
+-- -- | optional : Dep α → Dep α
+-- -- | all : Array Dep → Dep α
+-- -- | xor : Array Dep → Dep α
+
+-- -- #check {x α : Type} → (x → α)
+
+-- -- inductive Dep α where
+-- -- | alt : Dep α → Dep α → Dep α
+-- -- | mult {x} : Dep (x → α) → Dep x
+
+-- inductive Dep.{u,v} : Type u → Type v where
+-- -- | unsat : Dep α
+-- | satisfies : (Substring → Option α) → Dep α
+-- -- | optional : Dep α → Dep α
+-- | app : (α → β) → Dep α → Dep β
+-- | xor : Dep α → Dep α → Dep α
+
+-- -- def Dep.idk1 (d : Dep (α → β)) (a : α) : Dep β :=
+-- --   match d with
+-- --   | .app f x => sorry
+-- --   | _ => sorry
+
+-- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
+-- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
+-- def empty : Dep Algorithm := .satisfies (if ·.toString == "empty" then Algorithm.empty else none)
+-- def size : Dep USize := .satisfies (if let some n := ·.toNat? then n.toUSize else none)
+
+-- def algorithm' : Dep (USize → NetworkSource) :=
+--   .app NetworkSource.algorithm
+--     (.xor bubble
+--       (.xor batcher empty))
+
+-- def algorithm : Dep NetworkSource :=
+--   .app
+--     algorithm'
+--     size
+
+-- def v : Dep Action :=
+--   .xor
+--     (app
+--       Action.convert
+--       ())
+--     <| .xor
+--       ?evolve
+--       ?verify
+
+
+-- -- | xor : Array (Dep α) → Dep α
+-- -- | all : Array (Dep α) → Dep α
+
+-- /-
+-- - auto generate help text, inserting useful --help and -h flags everywhere necessary
+-- - report informative parse errors
+-- - output value of type α, user specified
+-- -/
+
+-- /-
+--   cmd evolve
+--   - all
+--     - optional
+--       - flag --timeout
+--     - optional
+--       - flag --seed
+-- program : Action
+--   cmd convert :
+--   - xor
+--     - flag --algorithm : ExistingNetwork
+--       - optional : Algorithm
+--         - var : Algorithm
+--           - xor : Algorithm
+--             - str batcher : Algorithm
+--             - str bubble : Algorithm
+--             - str empty : Algorithm
+--       - var : Nat
+--         - nat : Nat
+--   - option --load
+-- -/
