@@ -1,16 +1,18 @@
 import SortingNetworkSearch.Action
 
-inductive Error where
-| unknown
-| expected : Array String → Error
-deriving Repr
+structure Error where
+  unexpected : Substring
+  expected : Array String
+deriving Repr, Inhabited
 
 def Error.append (e₁ e₂ : Error) : Error :=
-  match (e₁, e₂) with
-  | (.unknown, .unknown) => .unknown
-  | (.expected es, .unknown) => .expected es
-  | (.unknown, .expected es) => .expected es
-  | (.expected es₁, .expected es₂) => .expected <| es₁ ++ es₂
+  let s₁ := e₁.unexpected.startPos
+  let s₂ := e₂.unexpected.startPos
+  if s₁ < s₂
+  then e₂
+  else if s₂ < s₁
+  then e₁
+  else { e₁ with expected := e₁.expected ++ e₂.expected }
 
 instance : Append Error where
   append := Error.append
@@ -26,6 +28,9 @@ def Parser.pure (a : α) : Parser α := fun s => .ok (a, s)
 instance : Monad Parser where
   pure := Parser.pure
   bind := Parser.bind
+
+def Parser.startPos : Parser String.Pos := fun s => .ok (s.startPos, s)
+def Parser.input : Parser String := fun s => .ok (s.str, s)
 
 def Parser.andThen (pa : Parser α) (pb : Unit → Parser β) : Parser β := do
   let _ ← pa
@@ -81,7 +86,7 @@ instance : Alternative Dep where
 def Dep.run (d : Dep α) (s : Substring) : Except Error (α × Substring) :=
   match d with
   | .nil (.some a) => .ok (a, s)
-  | .nil .none => .error .unknown
+  | .nil .none => .error (panic! "what goes here?")
   | .opt o => o.parse s
   | .alt d₁ d₂ =>
     match d₁.run s with
@@ -97,6 +102,9 @@ def Dep.run (d : Dep α) (s : Substring) : Except Error (α × Substring) :=
   | .bind dx dxa => do
     let (x, s) ← dx.run s
     dxa x |>.run s
+
+-- def Parser.Result.idk (r : Except Error (α × Substring)) : Except String α :=
+
 
 partial def takeUntil (isStopChar : Char → Bool) : Parser Substring := fun s =>
   let (a, s) := takeUntilAux isStopChar s.startPos s
@@ -123,10 +131,12 @@ def ignore (p : Parser α) : Parser Unit := fun s => do
 def word : Parser Substring := ws >> token
 
 def symbol (str : String) : Parser Substring := fun s => do
+  let startPos := s.startPos
   let (a, s) ← word s
+  let endPos := s.startPos
   if str.toSubstring == a
   then .ok (a, s)
-  else .error (.expected #[str])
+  else .error { unexpected := Substring.mk s.str startPos endPos, expected := #[str] }
 
 def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   let a ← p
@@ -137,10 +147,25 @@ def batcher : Dep Algorithm := .opt { parse := symbol "batcher" |>.map fun _ => 
 def empty : Dep Algorithm := .opt { parse := symbol "empty" |>.map fun _ => .bubble }
 
 def Parser.nat : Parser Nat := do
+  let sp ← startPos
   let w ← word
+  let ep ← startPos
   if let some n := w.toNat?
   then pure n
-  else fun _ => .error (.expected #["a natural number"])
+  else do
+    let s ← input
+    let unexpected := Substring.mk s sp ep
+    fun _ => .error { unexpected, expected := #["a natural number"] }
+
+-- def Parser.switch (cases : Array (Parser Unit × Parser α)) : Parser α :=
+--   let rec loop (i : Nat) (errors : Array Error) : Parser α := fun s =>
+--     if h : i < cases.size then
+--       let (p₁, p₂) := cases[i]
+--       match p₁ s with
+--       | .error e => loop (i + 1) (errors.push e) s
+--       | .ok (_, s) => p₂ s
+--     else .error (errors.foldl (init := Error.unknown) (· ++ ·))
+--   loop 0 (.emptyWithCapacity cases.size)
 
 def Parser.usize : Parser USize := Nat.toUSize <$> Parser.nat
 
@@ -164,8 +189,8 @@ def loadOption : Dep NetworkSource := .bind loadFlag fun _ => fromFile
 
 def networkSource : Dep NetworkSource := algorithmOption <|> loadOption
 
-#eval networkSource.run "--algorithm batcher 3a".toSubstring
-#eval networkSource.run "--load nw.txt".toSubstring
+#eval networkSource.run "--algorithm batcher 3".toSubstring
+#eval networkSource.run "--load /tmp/nw.txt".toSubstring
 
 -- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
 -- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
