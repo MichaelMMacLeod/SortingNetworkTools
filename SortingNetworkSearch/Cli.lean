@@ -138,11 +138,6 @@ def symbol (str : String) : Parser Substring := fun s => do
 def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   let a ← p
   pure (f a)
-
-def bubble : Dep Algorithm := .opt { parse := symbol "bubble" |>.map fun _ => .bubble }
-def batcher : Dep Algorithm := .opt { parse := symbol "batcher" |>.map fun _ => .batcher }
-def empty : Dep Algorithm := .opt { parse := symbol "empty" |>.map fun _ => .empty }
-
 def Parser.nat : Parser Nat := do
   let sp ← startPos
   let w ← word
@@ -153,6 +148,8 @@ def Parser.nat : Parser Nat := do
     let s ← input
     let unexpected := Substring.mk s sp ep
     fun _ => .error { unexpected, expected := #["a natural number"] }
+
+def arg (a : α) (name : String) : Dep α := .opt { parse := symbol name |>.map fun _ => a }
 
 def cmd1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
   .bind (.opt { parse := symbol name })
@@ -174,19 +171,19 @@ def option2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β
   .bind (.opt { parse := symbol s!"--{name}" })
     fun _ => f <$> d₁ <*> d₂
 
+def bubble : Dep Algorithm := arg .bubble "bubble"
+def batcher : Dep Algorithm := arg .batcher "batcher"
+def empty : Dep Algorithm := arg .empty "empty"
+
 def Parser.usize : Parser USize := Nat.toUSize <$> Parser.nat
 
 def size : Dep USize := .opt { parse := Parser.usize }
-
-def algorithmFlag : Dep Substring := .opt { parse := symbol "--algorithm" }
 
 def algo : Dep Algorithm := bubble <|> batcher <|> empty
 
 def algorithmOption : Dep NetworkSource := option2 .algorithm "algorithm" algo size
 
 def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word }
-
-def fromFile : Dep NetworkSource := NetworkSource.fromFile <$> filePath
 
 def loadOption : Dep NetworkSource := option1 .fromFile "load" filePath
 
