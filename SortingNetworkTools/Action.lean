@@ -78,7 +78,7 @@ def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Net
       let pursleyString := network.toPursleyString
       let warning :=
         if lastFailures = 0 then
-          "(Reducing a the size of a correct network) "
+          "(Reducing the size of a correct network) "
         else
           "(Attempting to grow a correct network) "
       println! "{warning}Evolved to {numLayers} layers containing a total of {numSwaps} compare-and-exchange operations"
