@@ -14,7 +14,7 @@ inductive SerializationOut where
   -- | listOfSwaps
   | list
   | svg
-deriving Inhabited
+deriving Inhabited, Repr
 
 inductive Algorithm where
 | empty
@@ -43,7 +43,7 @@ def NetworkSource.load : NetworkSource → IO (Σ size, Network size)
 inductive Action where
   | convert : NetworkSource → SerializationOut → Action
   | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → NetworkSource → Action
-deriving Inhabited
+deriving Inhabited, Repr
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
   let startMs ← IO.monoMsNow

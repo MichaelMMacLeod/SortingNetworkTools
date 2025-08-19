@@ -143,8 +143,8 @@ def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   pure (f a)
 
 def bubble : Dep Algorithm := .opt { parse := symbol "bubble" |>.map fun _ => .bubble }
-def batcher : Dep Algorithm := .opt { parse := symbol "batcher" |>.map fun _ => .bubble }
-def empty : Dep Algorithm := .opt { parse := symbol "empty" |>.map fun _ => .bubble }
+def batcher : Dep Algorithm := .opt { parse := symbol "batcher" |>.map fun _ => .batcher }
+def empty : Dep Algorithm := .opt { parse := symbol "empty" |>.map fun _ => .empty }
 
 def Parser.nat : Parser Nat := do
   let sp ← startPos
@@ -167,6 +167,26 @@ def Parser.nat : Parser Nat := do
 --     else .error (errors.foldl (init := Error.unknown) (· ++ ·))
 --   loop 0 (.emptyWithCapacity cases.size)
 
+def cmd1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
+  .bind (.opt { parse := symbol name })
+    fun _ => f <$> d
+
+def cmd2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
+  .bind (.opt { parse := symbol name })
+    fun _ => f <$> d₁ <*> d₂
+
+def cmd3 (f : α → β → γ → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ): Dep x :=
+  .bind (.opt { parse := symbol name })
+    fun _ => f <$> d₁ <*> d₂ <*> d₃
+
+def option1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
+  .bind (.opt { parse := symbol s!"--{name}" })
+    fun _ => f <$> d
+
+def option2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
+  .bind (.opt { parse := symbol s!"--{name}" })
+    fun _ => f <$> d₁ <*> d₂
+
 def Parser.usize : Parser USize := Nat.toUSize <$> Parser.nat
 
 def size : Dep USize := .opt { parse := Parser.usize }
@@ -175,22 +195,36 @@ def algorithmFlag : Dep Substring := .opt { parse := symbol "--algorithm" }
 
 def algo : Dep Algorithm := bubble <|> batcher <|> empty
 
-def algorithm : Dep NetworkSource := NetworkSource.algorithm <$> algo <*> size
-
-def algorithmOption : Dep NetworkSource := .bind algorithmFlag fun _ => algorithm
+def algorithmOption : Dep NetworkSource := option2 .algorithm "algorithm" algo size
 
 def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word }
 
 def fromFile : Dep NetworkSource := NetworkSource.fromFile <$> filePath
 
-def loadFlag : Dep Substring := .opt { parse := symbol "--load" }
-
-def loadOption : Dep NetworkSource := .bind loadFlag fun _ => fromFile
+def loadOption : Dep NetworkSource := option1 .fromFile "load" filePath
 
 def networkSource : Dep NetworkSource := algorithmOption <|> loadOption
 
+def list : Dep SerializationOut := .opt { parse := symbol "list" |>.map fun _ => .list }
+def svg : Dep SerializationOut := .opt { parse := symbol "svg" |>.map fun _ => .svg }
+
+def seed : Dep Nat := option1 id "seed" (.opt { parse := Parser.nat })
+def timeout : Dep Nat := option1 id "timeout" (.opt { parse := Parser.nat })
+
+def convert : Dep Action := cmd2 .convert "convert" networkSource (list <|> svg)
+def evolve : Dep Action := cmd3 .evolve "evolve" (optional seed) (optional timeout) networkSource
+
+def action : Dep Action := convert <|> evolve
+
+-- def serializationOut : Dep SerializationOut := option1
+
 #eval networkSource.run "--algorithm batcher 3".toSubstring
 #eval networkSource.run "--load /tmp/nw.txt".toSubstring
+#eval convert.run "convert --algorithm batcher 3 svg".toSubstring
+#eval convert.run "convert --load /tmp/nw.txt svg".toSubstring
+#eval evolve.run "evolve --seed 123 --timeout 10 --load /tmp/nw.txt".toSubstring
+#eval action.run "convert --algorithm batcher 3 svg".toSubstring |>.toOption |>.get! |> fun (x, _) => x.main
+#eval action.run "evolve --seed 123 --timeout 5 --algorithm empty 8".toSubstring
 
 -- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
 -- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
