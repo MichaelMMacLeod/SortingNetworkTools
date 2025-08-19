@@ -130,18 +130,28 @@ def ignore (p : Parser α) : Parser Unit := fun s => do
   let (_, s) ← p s
   .ok ((), s)
 
-def word : Parser (Substring) := ws >> token
+def word (expected : Unit → Array Expected) : Parser (Substring) := do
+  let _ ← ws
+  let t ← token
+  if t.startPos ≠ t.stopPos
+  then pure t
+  else
+    fun _ => .error {
+      unexpected := Substring.mk t.str t.startPos t.startPos
+      expected := expected ()
+    }
 
-def symbol (str description : String) : Parser Substring := fun s => do
-  let (a, s) ← word s
+def symbol (str name description : String) : Parser Substring := fun s => do
+  let mkExpected := fun _ => #[{ name, description := some description }]
+  let (a, s) ← word mkExpected s
   let startPos := a.startPos
-  let endPos := a.startPos
+  let stopPos := a.stopPos
   if str.toSubstring == a
   then .ok (a, s)
   else
     .error {
-      unexpected := Substring.mk s.str startPos endPos
-      expected := #[{ name := s!"{str}", description := some description }]
+      unexpected := Substring.mk s.str startPos stopPos
+      expected := mkExpected ()
     }
 
 def Parser.map (p : Parser α) (f : α → β) : Parser β := do
@@ -149,7 +159,8 @@ def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   pure (f a)
 
 def Parser.nat (name description : String) : Parser Nat := do
-  let w ← word
+  let mkExpected := fun _ => #[{ name, description := s!"{description} (a natural number)" }]
+  let w ← word mkExpected
   let sp := w.startPos
   let ep := w.stopPos
   if let some n := w.toNat?
@@ -160,11 +171,15 @@ def Parser.nat (name description : String) : Parser Nat := do
     fun _ =>
       .error {
         unexpected
-        expected := #[{ name, description := s!"{description} (a natural number)" }]
+        expected := mkExpected ()
       }
 
 def Parser.boundedNat (name description : String) (loInclusive hiInclusive : Nat) : Parser Nat := do
-  let w ← word
+  let mkExpected := fun _ => #[{
+      name
+      description := s!"{description} (a natural number in the range {loInclusive}..={hiInclusive})"
+    }]
+  let w ← word mkExpected
   let sp := w.startPos
   let ep := w.stopPos
   let mkError : String → Substring → Except Error (Nat × Substring) := fun s =>
@@ -172,10 +187,7 @@ def Parser.boundedNat (name description : String) (loInclusive hiInclusive : Nat
     fun _ =>
       .error {
         unexpected
-        expected := #[{
-          name
-          description := s!"{description} (a natural number in the range {loInclusive}..={hiInclusive})"
-        }]
+        expected := mkExpected ()
       }
   if let some n := w.toNat? then
     if n ≥ loInclusive ∧ n ≤ hiInclusive
@@ -183,48 +195,48 @@ def Parser.boundedNat (name description : String) (loInclusive hiInclusive : Nat
     else mkError (← input)
   else mkError (← input)
 
-def arg (a : α) (name description : String) : Dep α := .opt { parse := symbol name description |>.map fun _ => a }
+def arg (a : α) (name description : String) : Dep α := .opt { parse := symbol name s!"'{name}'" description |>.map fun _ => a }
 
 def cmd1 (f : α → x) (name description : String) (d : Dep α) : Dep x :=
-  .bind (.opt { parse := symbol name description })
+  .bind (.opt { parse := symbol name name description })
     fun _ => f <$> d
 
 def cmd2 (f : α → β → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
-  .bind (.opt { parse := symbol name description })
+  .bind (.opt { parse := symbol name name description })
     fun _ => f <$> d₁ <*> d₂
 
 def cmd3 (f : α → β → γ → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ) : Dep x :=
-  .bind (.opt { parse := symbol name description })
+  .bind (.opt { parse := symbol name name description })
     fun _ => f <$> d₁ <*> d₂ <*> d₃
 
 def option1 (f : α → x) (name description : String) (d : Dep α) : Dep x :=
-  .bind (.opt { parse := symbol s!"--{name}" description })
+  .bind (.opt { parse := symbol s!"--{name}" s!"--{name}" description })
     fun _ => f <$> d
 
 def option2 (f : α → β → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
-  .bind (.opt { parse := symbol s!"--{name}" description })
+  .bind (.opt { parse := symbol s!"--{name}" s!"--{name}" description })
     fun _ => f <$> d₁ <*> d₂
 
 def bubble : Dep Algorithm := arg .bubble "bubble" "bubble sort"
 def batcher : Dep Algorithm := arg .batcher "batcher" "batcher odd-even mergesort"
-def empty : Dep Algorithm := arg .empty "empty" "network with no comparisons (useful for evolving from a blank slate)"
+def empty : Dep Algorithm := arg .empty "empty" "network with no comparisons (recommended option for 'snt evolve')"
 
 def Parser.usize : Parser USize := Nat.toUSize <$> Parser.boundedNat "network size" "number of inputs to the network" 2 32
 
 def size : Dep USize := .opt { parse := Parser.usize }
 
-def algo : Dep Algorithm := bubble <|> batcher <|> empty
+def algo : Dep Algorithm := empty <|> bubble <|> batcher
 
 def algorithmOption : Dep NetworkSource := option2 .algorithm "algorithm" "creates a comparison network via a known method" algo size
 
-def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word }
+def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word fun _ => #[{ name := "file", description := "path to a network stored in the 'list' format" }] }
 
 def loadOption : Dep NetworkSource := option1 .fromFile "load" "loads a comparison network stored in the 'list' format from a file" filePath
 
 def networkSource : Dep NetworkSource := algorithmOption <|> loadOption
 
-def list : Dep SerializationOut := .opt { parse := symbol "list" "a comma-separated list of compare-and-exchanges, e.g., '0:1,1:2,0:2'" |>.map fun _ => .list }
-def svg : Dep SerializationOut := .opt { parse := symbol "svg" "Scalable Vector Graphics (SVG), viewable in a web browser" |>.map fun _ => .svg }
+def list : Dep SerializationOut := .opt { parse := symbol "list" "'list'" "converts a network to a comma-separated list of compare-and-exchanges, e.g., '0:1,1:2,0:2'" |>.map fun _ => .list }
+def svg : Dep SerializationOut := .opt { parse := symbol "svg" "'svg'" "converts a network to scalable vector graphics (SVG), viewable in a web browser" |>.map fun _ => .svg }
 
 def seed : Dep Nat := option1 id "seed" "" (.opt { parse := Parser.nat "seed" "initial value for the psuedorandom number generator controling mutations" })
 def timeout : Dep Nat := option1 id "timeout" "" (.opt { parse := Parser.nat "timeout" "time in seconds before terminating evolution" })
