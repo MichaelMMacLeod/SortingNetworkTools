@@ -95,14 +95,14 @@ def Network.verify (network : Network size) : IO Unit := do
   else println! "This network fails to sort some inputs"
 
 def Action.main : Action → IO Unit
-  | convert networkSource serializationOut => do
-    let ⟨_size, network⟩ ← networkSource.load
-    match serializationOut with
-    | .list => IO.println network.toPursleyString
-    | .svg => IO.println network.toSVG.toString
-  | .evolve seedOption timeoutSecondsOption networkSource => do
-    let ⟨_size, network⟩ ← networkSource.load
-    network.evolve seedOption timeoutSecondsOption
-  | .verify networkSource => do
-    let ⟨_size, network⟩ ← networkSource.load
-    network.verify
+| convert networkSource serializationOut => do
+  let ⟨_size, network⟩ ← networkSource.load
+  match serializationOut with
+  | .list => IO.println network.toPursleyString
+  | .svg => IO.println network.toSVG.toString
+| .evolve seedOption timeoutSecondsOption networkSource => do
+  let ⟨_size, network⟩ ← networkSource.load
+  network.evolve seedOption timeoutSecondsOption
+| .verify networkSource => do
+  let ⟨_size, network⟩ ← networkSource.load
+  network.verify
