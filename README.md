@@ -1,12 +1,20 @@
 # SortingNetworkTools
 
-![Diagram of Batcher odd-even mergesort with 16 channels](svg/batcher16.svg)
+![Diagram of Batcher odd-even mergesort with 16 channels](images/batcher16.svg)
 
 SortingNetworkTools (SNT) is a suite of tools for handling [sorting networks](https://en.wikipedia.org/wiki/Sorting_network). It can:
 
 - Convert comparison networks to different formats (e.g., SVG, viewable in a web browser)
 - Verify the correctness of existing networks
 - Search for new sorting networks via an evolutionary strategy
+
+## Table of Contents
+
+- [Download, build, and run](#download-build-and-run)
+- [`snt convert` - Convert a network to a format](#snt-convert---convert-a-network-to-a-format)
+- [`snt verify` - Verify a network's correctness](#snt-verify---verify-a-networks-correctness)
+- [`snt evolve` - Create new sorting networks through repeated mutation](#snt-evolve---create-new-sorting-networks-through-repeated-mutation)
+- [Network Visualization: Lean InfoView Integration](#network-visualization-lean-infoview-integration)
 
 ## Download, build, and run
 
@@ -91,3 +99,9 @@ The network at each stage will be printed in the `list` format (see [snt convert
     (Reducing the size of a correct network) Evolved to 3 layers containing a total of 5 compare-and-exchange operations
     0:2,1:3,0:1,2:3,1:2
     ```
+
+## Network Visualization: Lean InfoView Integration
+
+![left-hand side: cursor on #network nw15, right-hand side: visual representation of nw15 in the Lean InfoView](images/network_command.png)
+
+SortingNetworkTools defines the `#network <network>` command, a [Lean Widget](https://lean-lang.org/examples/1900-1-1-widgets/) which displays the SVG representation of `<network>` in the Lean InfoView.
