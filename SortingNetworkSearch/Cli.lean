@@ -138,16 +138,30 @@ def symbol (str : String) : Parser Substring := fun s => do
 def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   let a ← p
   pure (f a)
+
 def Parser.nat : Parser Nat := do
   let w ← word
   let sp := w.startPos
   let ep := w.stopPos
   if let some n := w.toNat?
   then pure n
-  else do
+  else
     let s ← input
     let unexpected := Substring.mk s sp ep
     fun _ => .error { unexpected, expected := #["a natural number"] }
+
+def Parser.boundedNat (loInclusive hiInclusive : Nat) : Parser Nat := do
+  let w ← word
+  let sp := w.startPos
+  let ep := w.stopPos
+  let mkError : String → Substring → Except Error (Nat × Substring) := fun s =>
+    let unexpected := Substring.mk s sp ep
+    fun _ => .error { unexpected, expected := #[s!"a natural number in the range {loInclusive}..={hiInclusive}"] }
+  if let some n := w.toNat? then
+    if n ≥ loInclusive ∧ n ≤ hiInclusive
+    then pure n
+    else mkError (← input)
+  else mkError (← input)
 
 def arg (a : α) (name : String) : Dep α := .opt { parse := symbol name |>.map fun _ => a }
 
@@ -159,7 +173,7 @@ def cmd2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) :
   .bind (.opt { parse := symbol name })
     fun _ => f <$> d₁ <*> d₂
 
-def cmd3 (f : α → β → γ → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ): Dep x :=
+def cmd3 (f : α → β → γ → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ) : Dep x :=
   .bind (.opt { parse := symbol name })
     fun _ => f <$> d₁ <*> d₂ <*> d₃
 
@@ -175,7 +189,7 @@ def bubble : Dep Algorithm := arg .bubble "bubble"
 def batcher : Dep Algorithm := arg .batcher "batcher"
 def empty : Dep Algorithm := arg .empty "empty"
 
-def Parser.usize : Parser USize := Nat.toUSize <$> Parser.nat
+def Parser.usize : Parser USize := Nat.toUSize <$> Parser.boundedNat 2 32
 
 def size : Dep USize := .opt { parse := Parser.usize }
 
@@ -197,8 +211,9 @@ def timeout : Dep Nat := option1 id "timeout" (.opt { parse := Parser.nat })
 
 def convert : Dep Action := cmd2 .convert "convert" networkSource (list <|> svg)
 def evolve : Dep Action := cmd3 .evolve "evolve" (optional seed) (optional timeout) networkSource
+def verify : Dep Action := cmd1 .verify "verify" networkSource
 
-def Dep.action : Dep Action := convert <|> evolve
+def Dep.action : Dep Action := convert <|> evolve <|> verify
 
 open Std.Format in
 def Error.fmt (programName : String) (e : Error) : Std.Format :=

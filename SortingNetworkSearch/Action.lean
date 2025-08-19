@@ -43,6 +43,7 @@ def NetworkSource.load : NetworkSource → IO (Σ size, Network size)
 inductive Action where
   | convert : NetworkSource → SerializationOut → Action
   | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → NetworkSource → Action
+  | verify : NetworkSource → Action
 deriving Inhabited, Repr
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
@@ -94,62 +95,21 @@ def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Net
   let elapsedSeconds := (currentMs - startMs) / 1000
   println! "Evolution from seed {seed} finished after {elapsedSeconds} seconds"
 
+def Network.verify (network : Network size) : IO Unit := do
+  let failures := network.compile.countTestFailures
+  if failures = 0
+  then println! "This network correctly sorts all possible inputs"
+  else println! "This network fails to sort some inputs"
+
 def Action.main : Action → IO Unit
-  | convert existingNetwork serializationOut => do
-    let ⟨_size, network⟩ ← existingNetwork.load
+  | convert networkSource serializationOut => do
+    let ⟨_size, network⟩ ← networkSource.load
     match serializationOut with
     | .list => IO.println network.toPursleyString
     | .svg => IO.println network.toSVG.toString
-  | .evolve seedOption timeoutSecondsOption existingNetwork => do
-    let ⟨_size, network⟩ ← existingNetwork.load
+  | .evolve seedOption timeoutSecondsOption networkSource => do
+    let ⟨_size, network⟩ ← networkSource.load
     network.evolve seedOption timeoutSecondsOption
-
-def ExistingNetwork.fromParsedCli (cli : SubstringTree) : Option NetworkSource :=
-  match cli with
-  | .node #[.leaf algorithmOption, .leaf a, .leaf size] => do
-    let size ← size.toNat?
-    let size := size.toUSize
-    match algorithmOption.toString with
-    | "-a" | "--algorithm" =>
-      let a :=
-        match a.toString with
-        | "bubble" => .bubble
-        | "batcher" => .batcher
-        | "empty" => .empty
-        | _ => unreachable!
-      pure <| .algorithm a size
-    | _ => none
-  | .node #[.leaf loadOption, .leaf file] =>
-    match loadOption.toString with
-    | "-l" | "--load" =>
-      some (.fromFile file.toString)
-    | _ => none
-  | _ => none
-
-def SerializationOut.fromParsedCli (cli : SubstringTree) : Option SerializationOut :=
-  match cli with
-  | .node #[.leaf formatOption, .leaf format] =>
-    match formatOption.toString with
-    | "-f" | "--format" =>
-      match format.toString with
-      | "svg" => some .svg
-      | "list" => some .list
-      | _ => none
-    | _ => none
-  | _ => none
-
-def Action.fromParsedCLI (cli : SubstringTree) : Option Action :=
-  match cli with
-  | .node #[.node #[existingNetwork], .leaf command, commandOptions] => do
-    let existingNetwork ← ExistingNetwork.fromParsedCli existingNetwork
-    match command.toString with
-    | "convert" =>
-      match commandOptions with
-      | .node #[formatOption] =>
-        let serializationOut ← SerializationOut.fromParsedCli formatOption
-        some (.convert existingNetwork serializationOut)
-      | _ => none
-    -- | "evolve" =>
-      -- match commandOptions with/
-    | _ => panic! "not yet implemented"
-  | _ => none
+  | .verify networkSource => do
+    let ⟨_size, network⟩ ← networkSource.load
+    network.verify
