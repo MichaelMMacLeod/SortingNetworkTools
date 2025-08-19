@@ -103,9 +103,6 @@ def Dep.run (d : Dep α) (s : Substring) : Except Error (α × Substring) :=
     let (x, s) ← dx.run s
     dxa x |>.run s
 
--- def Parser.Result.idk (r : Except Error (α × Substring)) : Except String α :=
-
-
 partial def takeUntil (isStopChar : Char → Bool) : Parser Substring := fun s =>
   let (a, s) := takeUntilAux isStopChar s.startPos s
   .ok (a, s)
@@ -157,16 +154,6 @@ def Parser.nat : Parser Nat := do
     let unexpected := Substring.mk s sp ep
     fun _ => .error { unexpected, expected := #["a natural number"] }
 
--- def Parser.switch (cases : Array (Parser Unit × Parser α)) : Parser α :=
---   let rec loop (i : Nat) (errors : Array Error) : Parser α := fun s =>
---     if h : i < cases.size then
---       let (p₁, p₂) := cases[i]
---       match p₁ s with
---       | .error e => loop (i + 1) (errors.push e) s
---       | .ok (_, s) => p₂ s
---     else .error (errors.foldl (init := Error.unknown) (· ++ ·))
---   loop 0 (.emptyWithCapacity cases.size)
-
 def cmd1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
   .bind (.opt { parse := symbol name })
     fun _ => f <$> d
@@ -214,145 +201,4 @@ def timeout : Dep Nat := option1 id "timeout" (.opt { parse := Parser.nat })
 def convert : Dep Action := cmd2 .convert "convert" networkSource (list <|> svg)
 def evolve : Dep Action := cmd3 .evolve "evolve" (optional seed) (optional timeout) networkSource
 
-def action : Dep Action := convert <|> evolve
-
--- def serializationOut : Dep SerializationOut := option1
-
-#eval networkSource.run "--algorithm batcher 3".toSubstring
-#eval networkSource.run "--load /tmp/nw.txt".toSubstring
-#eval convert.run "convert --algorithm batcher 3 svg".toSubstring
-#eval convert.run "convert --load /tmp/nw.txt svg".toSubstring
-#eval evolve.run "evolve --seed 123 --timeout 10 --load /tmp/nw.txt".toSubstring
-#eval action.run "convert --algorithm batcher 3 svg".toSubstring |>.toOption |>.get! |> fun (x, _) => x.main
-#eval action.run "evolve --seed 123 --timeout 5 --algorithm empty 8".toSubstring
-
--- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
--- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
--- def empty : Dep Algorithm := .satisfies (if ·.toString == "empty" then Algorithm.empty else none)
--- def size : Dep USize := .satisfies (if let some n := ·.toNat? then n.toUSize else none)
-
--- structure DepM r where
---   runDepM : (r → Dep x) → Dep x
-
--- def DepM.pure (x : r) : DepM r := { runDepM := fun k => k x }
--- def DepM.bind (f : DepM α) (g : (α → DepM β)) : DepM β :=
---   { runDepM := fun k => f.runDepM (fun x => (g x).runDepM k) }
-
--- instance : Monad DepM where
---   pure := DepM.pure
---   bind := DepM.bind
-
--- def DepM.seq (dab : DepM (α → β)) (da : (Unit → DepM α)) : DepM β :=
---   dab.bind fun x1 =>
---     (da ()).bind fun x2 =>
---       pure (x1 x2)
-
--- instance : Applicative DepM where
---   pure := DepM.pure
---   seq := DepM.seq
-
--- def DepM.map (f : α → β) (d : DepM α) : DepM β :=
-
-
--- instance : Functor DepM where
---   map := DepM.map
-
-
-
--- class FromSubstring (α : Type) where
---   fromSubstring : Substring → Option α
-
--- instance : FromSubstring Nat where
---   fromSubstring := Substring.toNat?
-
--- -- A variable, such 'foo' in '--myOption foo'
--- structure Var (α : Type) [FromSubstring α] where
-
-
--- structure Flag where
-
--- structure Cmd where
-
--- -- inductive Dep (α : Type) [FromSubstring α] where
--- -- | symbol : String → Dep α
--- -- | nat : Dep Nat
--- -- | var : Var α → Dep α
--- -- | flag : Flag → Dep α
--- -- | cmd : Cmd → Dep α
--- -- | optional : Dep α → Dep α
--- -- | all : Array Dep → Dep α
--- -- | xor : Array Dep → Dep α
-
--- -- #check {x α : Type} → (x → α)
-
--- -- inductive Dep α where
--- -- | alt : Dep α → Dep α → Dep α
--- -- | mult {x} : Dep (x → α) → Dep x
-
--- inductive Dep.{u,v} : Type u → Type v where
--- -- | unsat : Dep α
--- | satisfies : (Substring → Option α) → Dep α
--- -- | optional : Dep α → Dep α
--- | app : (α → β) → Dep α → Dep β
--- | xor : Dep α → Dep α → Dep α
-
--- -- def Dep.idk1 (d : Dep (α → β)) (a : α) : Dep β :=
--- --   match d with
--- --   | .app f x => sorry
--- --   | _ => sorry
-
--- def bubble : Dep Algorithm := .satisfies (if ·.toString == "bubble" then Algorithm.bubble else none)
--- def batcher : Dep Algorithm := .satisfies (if ·.toString == "batcher" then Algorithm.batcher else none)
--- def empty : Dep Algorithm := .satisfies (if ·.toString == "empty" then Algorithm.empty else none)
--- def size : Dep USize := .satisfies (if let some n := ·.toNat? then n.toUSize else none)
-
--- def algorithm' : Dep (USize → NetworkSource) :=
---   .app NetworkSource.algorithm
---     (.xor bubble
---       (.xor batcher empty))
-
--- def algorithm : Dep NetworkSource :=
---   .app
---     algorithm'
---     size
-
--- def v : Dep Action :=
---   .xor
---     (app
---       Action.convert
---       ())
---     <| .xor
---       ?evolve
---       ?verify
-
-
--- -- | xor : Array (Dep α) → Dep α
--- -- | all : Array (Dep α) → Dep α
-
--- /-
--- - auto generate help text, inserting useful --help and -h flags everywhere necessary
--- - report informative parse errors
--- - output value of type α, user specified
--- -/
-
--- /-
---   cmd evolve
---   - all
---     - optional
---       - flag --timeout
---     - optional
---       - flag --seed
--- program : Action
---   cmd convert :
---   - xor
---     - flag --algorithm : ExistingNetwork
---       - optional : Algorithm
---         - var : Algorithm
---           - xor : Algorithm
---             - str batcher : Algorithm
---             - str bubble : Algorithm
---             - str empty : Algorithm
---       - var : Nat
---         - nat : Nat
---   - option --load
--- -/
+def Dep.action : Dep Action := convert <|> evolve
