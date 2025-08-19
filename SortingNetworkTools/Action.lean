@@ -1,5 +1,4 @@
 import SortingNetworkTools.NetworkExtras
-import SortingNetworkTools.SubstringTree
 
 inductive SerializationIn where
 | list
