@@ -38,7 +38,7 @@ partial def CompiledNetwork.runTestPack
       let testPack := ⟨testPack, by grind⟩
       let testPack' := TestPack.compareAndSwap a b testPack
       have size_eq := TestPack.compareAndSwap_size_eq a b testPack
-      have runParallel_h : runTestPack.h n testPack' := by
+      have runTestPack_h : runTestPack.h n testPack' := by
         apply runTestPack.h.mk
         all_goals simp_wf <;> rw [TestPack.compareAndSwap_size_eq]
         . exact testPack_property.size_vals_lt_size_USize
