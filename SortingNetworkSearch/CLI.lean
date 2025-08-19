@@ -726,3 +726,5 @@ def Cli.Program.globalHelpFmt (p : Program) : Format :=
 #guard_msgs in #eval sns.parser.run "convert --format svg" |>.errorMessage
 
 -- def Cli.Program.Parser.Output.toAction (s : SubstringTree) :
+
+#eval sns.globalHelpFmt

@@ -125,12 +125,12 @@ def ignore (p : Parser α) : Parser Unit := fun s => do
   let (_, s) ← p s
   .ok ((), s)
 
-def word : Parser Substring := ws >> token
+def word : Parser (Substring) := ws >> token
 
 def symbol (str : String) : Parser Substring := fun s => do
-  let startPos := s.startPos
   let (a, s) ← word s
-  let endPos := s.startPos
+  let startPos := a.startPos
+  let endPos := a.startPos
   if str.toSubstring == a
   then .ok (a, s)
   else .error { unexpected := Substring.mk s.str startPos endPos, expected := #[str] }
@@ -139,9 +139,9 @@ def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   let a ← p
   pure (f a)
 def Parser.nat : Parser Nat := do
-  let sp ← startPos
   let w ← word
-  let ep ← startPos
+  let sp := w.startPos
+  let ep := w.stopPos
   if let some n := w.toNat?
   then pure n
   else do
@@ -199,3 +199,15 @@ def convert : Dep Action := cmd2 .convert "convert" networkSource (list <|> svg)
 def evolve : Dep Action := cmd3 .evolve "evolve" (optional seed) (optional timeout) networkSource
 
 def Dep.action : Dep Action := convert <|> evolve
+
+open Std.Format in
+def Error.fmt (programName : String) (e : Error) : Std.Format :=
+  let result := programName ++ e.unexpected.str
+  let result := result ++ "\n"
+  let result := result.pushn ' ' (programName.length + e.unexpected.startPos.byteIdx)
+  let result := result ++ "^ expected "
+  let expected1 : Std.Format := joinSep (e.expected.toList.take (e.expected.size - 2)) ", "
+  let expected2 : Std.Format := joinSep (e.expected.toList.drop (e.expected.size - 2)) " or "
+  let expected1 := if expected1.isEmpty then expected1 else expected1 ++ ", "
+  let result := result ++ expected1 ++ expected2
+  result
