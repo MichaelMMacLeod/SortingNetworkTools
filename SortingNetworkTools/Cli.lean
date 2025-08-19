@@ -1,8 +1,13 @@
 import SortingNetworkTools.Action
 
+structure Expected where
+  name : String
+  description : Option String
+deriving Repr, Inhabited
+
 structure Error where
   unexpected : Substring
-  expected : Array String
+  expected : Array Expected
 deriving Repr, Inhabited
 
 def Error.append (e₁ e₂ : Error) : Error :=
@@ -127,19 +132,23 @@ def ignore (p : Parser α) : Parser Unit := fun s => do
 
 def word : Parser (Substring) := ws >> token
 
-def symbol (str : String) : Parser Substring := fun s => do
+def symbol (str description : String) : Parser Substring := fun s => do
   let (a, s) ← word s
   let startPos := a.startPos
   let endPos := a.startPos
   if str.toSubstring == a
   then .ok (a, s)
-  else .error { unexpected := Substring.mk s.str startPos endPos, expected := #[str] }
+  else
+    .error {
+      unexpected := Substring.mk s.str startPos endPos
+      expected := #[{ name := s!"{str}", description := some description }]
+    }
 
 def Parser.map (p : Parser α) (f : α → β) : Parser β := do
   let a ← p
   pure (f a)
 
-def Parser.nat : Parser Nat := do
+def Parser.nat (name description : String) : Parser Nat := do
   let w ← word
   let sp := w.startPos
   let ep := w.stopPos
@@ -148,70 +157,81 @@ def Parser.nat : Parser Nat := do
   else
     let s ← input
     let unexpected := Substring.mk s sp ep
-    fun _ => .error { unexpected, expected := #["a natural number"] }
+    fun _ =>
+      .error {
+        unexpected
+        expected := #[{ name, description := s!"{description} (a natural number)" }]
+      }
 
-def Parser.boundedNat (loInclusive hiInclusive : Nat) : Parser Nat := do
+def Parser.boundedNat (name description : String) (loInclusive hiInclusive : Nat) : Parser Nat := do
   let w ← word
   let sp := w.startPos
   let ep := w.stopPos
   let mkError : String → Substring → Except Error (Nat × Substring) := fun s =>
     let unexpected := Substring.mk s sp ep
-    fun _ => .error { unexpected, expected := #[s!"a natural number in the range {loInclusive}..={hiInclusive}"] }
+    fun _ =>
+      .error {
+        unexpected
+        expected := #[{
+          name
+          description := s!"{description} (a natural number in the range {loInclusive}..={hiInclusive})"
+        }]
+      }
   if let some n := w.toNat? then
     if n ≥ loInclusive ∧ n ≤ hiInclusive
     then pure n
     else mkError (← input)
   else mkError (← input)
 
-def arg (a : α) (name : String) : Dep α := .opt { parse := symbol name |>.map fun _ => a }
+def arg (a : α) (name description : String) : Dep α := .opt { parse := symbol name description |>.map fun _ => a }
 
-def cmd1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
-  .bind (.opt { parse := symbol name })
+def cmd1 (f : α → x) (name description : String) (d : Dep α) : Dep x :=
+  .bind (.opt { parse := symbol name description })
     fun _ => f <$> d
 
-def cmd2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
-  .bind (.opt { parse := symbol name })
+def cmd2 (f : α → β → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
+  .bind (.opt { parse := symbol name description })
     fun _ => f <$> d₁ <*> d₂
 
-def cmd3 (f : α → β → γ → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ) : Dep x :=
-  .bind (.opt { parse := symbol name })
+def cmd3 (f : α → β → γ → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) (d₃ : Dep γ) : Dep x :=
+  .bind (.opt { parse := symbol name description })
     fun _ => f <$> d₁ <*> d₂ <*> d₃
 
-def option1 (f : α → x) (name : String) (d : Dep α) : Dep x :=
-  .bind (.opt { parse := symbol s!"--{name}" })
+def option1 (f : α → x) (name description : String) (d : Dep α) : Dep x :=
+  .bind (.opt { parse := symbol s!"--{name}" description })
     fun _ => f <$> d
 
-def option2 (f : α → β → x) (name : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
-  .bind (.opt { parse := symbol s!"--{name}" })
+def option2 (f : α → β → x) (name description : String) (d₁ : Dep α) (d₂ : Dep β) : Dep x :=
+  .bind (.opt { parse := symbol s!"--{name}" description })
     fun _ => f <$> d₁ <*> d₂
 
-def bubble : Dep Algorithm := arg .bubble "bubble"
-def batcher : Dep Algorithm := arg .batcher "batcher"
-def empty : Dep Algorithm := arg .empty "empty"
+def bubble : Dep Algorithm := arg .bubble "bubble" "bubble sort"
+def batcher : Dep Algorithm := arg .batcher "batcher" "batcher odd-even mergesort"
+def empty : Dep Algorithm := arg .empty "empty" "network with no comparisons (useful for evolving from a blank slate)"
 
-def Parser.usize : Parser USize := Nat.toUSize <$> Parser.boundedNat 2 32
+def Parser.usize : Parser USize := Nat.toUSize <$> Parser.boundedNat "network size" "number of inputs to the network" 2 32
 
 def size : Dep USize := .opt { parse := Parser.usize }
 
 def algo : Dep Algorithm := bubble <|> batcher <|> empty
 
-def algorithmOption : Dep NetworkSource := option2 .algorithm "algorithm" algo size
+def algorithmOption : Dep NetworkSource := option2 .algorithm "algorithm" "creates a comparison network via a known method" algo size
 
 def filePath : Dep System.FilePath := .opt { parse := (Coe.coe ∘ Substring.toString) <$> word }
 
-def loadOption : Dep NetworkSource := option1 .fromFile "load" filePath
+def loadOption : Dep NetworkSource := option1 .fromFile "load" "loads a comparison network stored in the 'list' format from a file" filePath
 
 def networkSource : Dep NetworkSource := algorithmOption <|> loadOption
 
-def list : Dep SerializationOut := .opt { parse := symbol "list" |>.map fun _ => .list }
-def svg : Dep SerializationOut := .opt { parse := symbol "svg" |>.map fun _ => .svg }
+def list : Dep SerializationOut := .opt { parse := symbol "list" "a comma-separated list of compare-and-exchanges, e.g., '0:1,1:2,0:2'" |>.map fun _ => .list }
+def svg : Dep SerializationOut := .opt { parse := symbol "svg" "Scalable Vector Graphics (SVG), viewable in a web browser" |>.map fun _ => .svg }
 
-def seed : Dep Nat := option1 id "seed" (.opt { parse := Parser.nat })
-def timeout : Dep Nat := option1 id "timeout" (.opt { parse := Parser.nat })
+def seed : Dep Nat := option1 id "seed" "" (.opt { parse := Parser.nat "seed" "initial value for the psuedorandom number generator controling mutations" })
+def timeout : Dep Nat := option1 id "timeout" "" (.opt { parse := Parser.nat "timeout" "time in seconds before terminating evolution" })
 
-def convert : Dep Action := cmd2 .convert "convert" networkSource (list <|> svg)
-def evolve : Dep Action := cmd3 .evolve "evolve" (optional seed) (optional timeout) networkSource
-def verify : Dep Action := cmd1 .verify "verify" networkSource
+def convert : Dep Action := cmd2 .convert "convert" "translate an existing network to different formats" networkSource (list <|> svg)
+def evolve : Dep Action := cmd3 .evolve "evolve" "search for better networks through repeated mutation" (optional seed) (optional timeout) networkSource
+def verify : Dep Action := cmd1 .verify "verify" "exaustively test a network for correctness" networkSource
 
 def Dep.action : Dep Action := convert <|> evolve <|> verify
 
@@ -221,8 +241,15 @@ def Error.fmt (programName : String) (e : Error) : Std.Format :=
   let result := result ++ "\n"
   let result := result.pushn ' ' (programName.length + e.unexpected.startPos.byteIdx)
   let result := result ++ "^ expected "
-  let expected1 : Std.Format := joinSep (e.expected.toList.take (e.expected.size - 2)) ", "
-  let expected2 : Std.Format := joinSep (e.expected.toList.drop (e.expected.size - 2)) " or "
+  let expected1 : Std.Format := joinSep (e.expected.toList.take (e.expected.size - 2) |>.map (·.name)) ", "
+  let expected2 : Std.Format := joinSep (e.expected.toList.drop (e.expected.size - 2) |>.map (·.name)) " or "
   let expected1 := if expected1.isEmpty then expected1 else expected1 ++ ", "
   let result := result ++ expected1 ++ expected2
+  let descriptions : List Std.Format := e.expected.toList.filterMap fun exp =>
+    if let some d := exp.description
+    then s!"{exp.name}: {d}"
+    else none
+  let descriptions : Std.Format := joinSep descriptions "\n"
+  let result := result ++ if descriptions.isEmpty then "" else "\n"
+  let result := result ++ descriptions
   result
