@@ -1,5 +1,10 @@
 import SortingNetworkTools.Action
 
+/-
+Implements a rudimentary command line parser in the style of Paolo Capriotti & Huw Campbell's
+optparse-applicative Haskell package (see https://hackage.haskell.org/package/optparse-applicative.)
+-/
+
 structure Expected where
   name : String
   description : Option String
@@ -60,6 +65,12 @@ def Opt.map (f : α → β) (o : Opt α) : Opt β :=
 instance : Functor Opt where
   map := Opt.map
 
+/--
+A 'dependency'. For example, in `snt convert --algorithm <algo> <size>`, we say
+that the `convert` command has a dependency on the `--algorithm <algo> <size>` option.
+The `α` in `Dep α` is the type that `Dep α` will attempt to produce when it is run
+(see `Dep.run`.)
+-/
 inductive Dep : Type u → Type (u+1) where
 | nil : Option α → Dep α
 | opt : Opt α → Dep α

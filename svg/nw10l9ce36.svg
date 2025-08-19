@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" height="220.000000" width="360.000000" viewBox="0 0 360.000000 220.000000">
+  <rect fill="white" height="220.000000" width="360.000000"></rect>
+  <line stroke-width="0.500000" stroke="black" x2="54.000000" x1="54.000000" y2="200.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="54.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="54.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="45.000000" x1="45.000000" y2="180.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="45.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="45.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="36.000000" x1="36.000000" y2="160.000000" y1="60.000000"></line>
+  <circle r="3" fill="black" cy="60.000000" cx="36.000000"></circle>
+  <circle r="3" fill="black" cy="160.000000" cx="36.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="27.000000" x1="27.000000" y2="140.000000" y1="80.000000"></line>
+  <circle r="3" fill="black" cy="80.000000" cx="27.000000"></circle>
+  <circle r="3" fill="black" cy="140.000000" cx="27.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="18.000000" x1="18.000000" y2="120.000000" y1="100.000000"></line>
+  <circle r="3" fill="black" cy="100.000000" cx="18.000000"></circle>
+  <circle r="3" fill="black" cy="120.000000" cx="18.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="90.000000" x1="90.000000" y2="200.000000" y1="120.000000"></line>
+  <circle r="3" fill="black" cy="120.000000" cx="90.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="90.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="90.000000" x1="90.000000" y2="100.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="90.000000"></circle>
+  <circle r="3" fill="black" cy="100.000000" cx="90.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="81.000000" x1="81.000000" y2="180.000000" y1="160.000000"></line>
+  <circle r="3" fill="black" cy="160.000000" cx="81.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="81.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="81.000000" x1="81.000000" y2="60.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="81.000000"></circle>
+  <circle r="3" fill="black" cy="60.000000" cx="81.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="144.000000" x1="144.000000" y2="200.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="144.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="144.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="135.000000" x1="135.000000" y2="180.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="135.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="135.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="126.000000" x1="126.000000" y2="160.000000" y1="60.000000"></line>
+  <circle r="3" fill="black" cy="60.000000" cx="126.000000"></circle>
+  <circle r="3" fill="black" cy="160.000000" cx="126.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="117.000000" x1="117.000000" y2="120.000000" y1="100.000000"></line>
+  <circle r="3" fill="black" cy="100.000000" cx="117.000000"></circle>
+  <circle r="3" fill="black" cy="120.000000" cx="117.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="171.000000" x1="171.000000" y2="200.000000" y1="180.000000"></line>
+  <circle r="3" fill="black" cy="180.000000" cx="171.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="171.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="171.000000" x1="171.000000" y2="140.000000" y1="120.000000"></line>
+  <circle r="3" fill="black" cy="120.000000" cx="171.000000"></circle>
+  <circle r="3" fill="black" cy="140.000000" cx="171.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="171.000000" x1="171.000000" y2="100.000000" y1="80.000000"></line>
+  <circle r="3" fill="black" cy="80.000000" cx="171.000000"></circle>
+  <circle r="3" fill="black" cy="100.000000" cx="171.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="171.000000" x1="171.000000" y2="40.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="171.000000"></circle>
+  <circle r="3" fill="black" cy="40.000000" cx="171.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="198.000000" x1="198.000000" y2="200.000000" y1="140.000000"></line>
+  <circle r="3" fill="black" cy="140.000000" cx="198.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="198.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="198.000000" x1="198.000000" y2="80.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="198.000000"></circle>
+  <circle r="3" fill="black" cy="80.000000" cx="198.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="198.000000" x1="198.000000" y2="120.000000" y1="100.000000"></line>
+  <circle r="3" fill="black" cy="100.000000" cx="198.000000"></circle>
+  <circle r="3" fill="black" cy="120.000000" cx="198.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="243.000000" x1="243.000000" y2="200.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="243.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="243.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="234.000000" x1="234.000000" y2="180.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="234.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="234.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="225.000000" x1="225.000000" y2="160.000000" y1="120.000000"></line>
+  <circle r="3" fill="black" cy="120.000000" cx="225.000000"></circle>
+  <circle r="3" fill="black" cy="160.000000" cx="225.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="225.000000" x1="225.000000" y2="100.000000" y1="60.000000"></line>
+  <circle r="3" fill="black" cy="60.000000" cx="225.000000"></circle>
+  <circle r="3" fill="black" cy="100.000000" cx="225.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="288.000000" x1="288.000000" y2="200.000000" y1="20.000000"></line>
+  <circle r="3" fill="black" cy="20.000000" cx="288.000000"></circle>
+  <circle r="3" fill="black" cy="200.000000" cx="288.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="279.000000" x1="279.000000" y2="160.000000" y1="60.000000"></line>
+  <circle r="3" fill="black" cy="60.000000" cx="279.000000"></circle>
+  <circle r="3" fill="black" cy="160.000000" cx="279.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="270.000000" x1="270.000000" y2="180.000000" y1="140.000000"></line>
+  <circle r="3" fill="black" cy="140.000000" cx="270.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="270.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="270.000000" x1="270.000000" y2="80.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="270.000000"></circle>
+  <circle r="3" fill="black" cy="80.000000" cx="270.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="270.000000" x1="270.000000" y2="120.000000" y1="100.000000"></line>
+  <circle r="3" fill="black" cy="100.000000" cx="270.000000"></circle>
+  <circle r="3" fill="black" cy="120.000000" cx="270.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="315.000000" x1="315.000000" y2="180.000000" y1="160.000000"></line>
+  <circle r="3" fill="black" cy="160.000000" cx="315.000000"></circle>
+  <circle r="3" fill="black" cy="180.000000" cx="315.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="315.000000" x1="315.000000" y2="140.000000" y1="120.000000"></line>
+  <circle r="3" fill="black" cy="120.000000" cx="315.000000"></circle>
+  <circle r="3" fill="black" cy="140.000000" cx="315.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="315.000000" x1="315.000000" y2="100.000000" y1="80.000000"></line>
+  <circle r="3" fill="black" cy="80.000000" cx="315.000000"></circle>
+  <circle r="3" fill="black" cy="100.000000" cx="315.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="315.000000" x1="315.000000" y2="60.000000" y1="40.000000"></line>
+  <circle r="3" fill="black" cy="40.000000" cx="315.000000"></circle>
+  <circle r="3" fill="black" cy="60.000000" cx="315.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="342.000000" x1="342.000000" y2="160.000000" y1="140.000000"></line>
+  <circle r="3" fill="black" cy="140.000000" cx="342.000000"></circle>
+  <circle r="3" fill="black" cy="160.000000" cx="342.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="342.000000" x1="342.000000" y2="120.000000" y1="100.000000"></line>
+  <circle r="3" fill="black" cy="100.000000" cx="342.000000"></circle>
+  <circle r="3" fill="black" cy="120.000000" cx="342.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="342.000000" x1="342.000000" y2="80.000000" y1="60.000000"></line>
+  <circle r="3" fill="black" cy="60.000000" cx="342.000000"></circle>
+  <circle r="3" fill="black" cy="80.000000" cx="342.000000"></circle>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="20.000000" y1="20.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="40.000000" y1="40.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="60.000000" y1="60.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="80.000000" y1="80.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="100.000000" y1="100.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="120.000000" y1="120.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="140.000000" y1="140.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="160.000000" y1="160.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="180.000000" y1="180.000000"></line>
+  <line stroke-width="0.500000" stroke="black" x2="360.000000" x1="0" y2="200.000000" y1="200.000000"></line>
+</svg>
