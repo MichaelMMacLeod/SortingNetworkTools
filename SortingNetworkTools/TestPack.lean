@@ -1,6 +1,6 @@
-import SortingNetworkSearch.ExtraTheorems
-import SortingNetworkSearch.LFSR
-import SortingNetworkSearch.UInt64Extras
+import SortingNetworkTools.ExtraTheorems
+import SortingNetworkTools.LFSR
+import SortingNetworkTools.UInt64Extras
 
 @[grind]
 structure pack.h (size : USize) (src dest : Array UInt64) where

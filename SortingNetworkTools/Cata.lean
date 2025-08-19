@@ -1,5 +1,5 @@
-import SortingNetworkSearch.Recursive
-import SortingNetworkSearch.ListF
+import SortingNetworkTools.Recursive
+import SortingNetworkTools.ListF
 
 /--
 A generic bottom-up fold. See `X.cataTR` (for a given `X` that defines it) for
@@ -15,7 +15,7 @@ that I need to resolve. This is why there is no non-type-specific `cataTR`.
 
 Example:
 ```
-import SortingNetworkSearch.ListF
+import SortingNetworkTools.ListF
 def sumFunc : ListF Nat Nat → Nat
   | .nil => 0
   | .cons a b => a + b

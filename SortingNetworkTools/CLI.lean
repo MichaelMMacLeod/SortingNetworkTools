@@ -1,9 +1,9 @@
-import SortingNetworkSearch.ExtraTheorems
+import SortingNetworkTools.ExtraTheorems
 import Lean.Parser
 import Lean.Elab.GuardMsgs
 import Lean.Data.Trie
 import Init.Data.Format.Basic
-import SortingNetworkSearch.SubstringTree
+import SortingNetworkTools.SubstringTree
 
 structure Parser.Error where
   unexpected : Substring

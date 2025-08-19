@@ -1,4 +1,4 @@
-import SortingNetworkSearch.Trampoline
+import SortingNetworkTools.Trampoline
 
 -- Useful for more easily ensuring the refcount of an array stays at 1
 -- when attempting to mutate one of its elements.

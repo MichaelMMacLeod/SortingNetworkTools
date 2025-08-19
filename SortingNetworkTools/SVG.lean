@@ -1,6 +1,6 @@
 import Std.Data.HashMap
-import SortingNetworkSearch.Recursive
-import SortingNetworkSearch.Cata
+import SortingNetworkTools.Recursive
+import SortingNetworkTools.Cata
 
 namespace SVG
 

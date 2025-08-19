@@ -1,5 +1,5 @@
-import SortingNetworkSearch.Cli
-import SortingNetworkSearch.Action
+import SortingNetworkTools.Cli
+import SortingNetworkTools.Action
 
 def main (args : List String) : IO Unit := do
   let args := args.foldl (s!"{·} {·}") ""

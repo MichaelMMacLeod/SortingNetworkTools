@@ -1,12 +1,12 @@
 import Std.Data.HashSet
-import SortingNetworkSearch.LFSR
-import SortingNetworkSearch.CompiledNetwork
-import SortingNetworkSearch.ExtraTheorems
-import SortingNetworkSearch.Layer
-import SortingNetworkSearch.ArrayExtras
-import SortingNetworkSearch.Mutation
-import SortingNetworkSearch.SVG
-import SortingNetworkSearch.StringExtras
+import SortingNetworkTools.LFSR
+import SortingNetworkTools.CompiledNetwork
+import SortingNetworkTools.ExtraTheorems
+import SortingNetworkTools.Layer
+import SortingNetworkTools.ArrayExtras
+import SortingNetworkTools.Mutation
+import SortingNetworkTools.SVG
+import SortingNetworkTools.StringExtras
 
 structure Network (size : USize) where
   layers : Array Layer

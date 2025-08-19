@@ -1,5 +1,5 @@
-import SortingNetworkSearch.Network
-import SortingNetworkSearch.SVGWidget
+import SortingNetworkTools.Network
+import SortingNetworkTools.SVGWidget
 
 /--
 Returns a `Network` implementing Batcher odd-even mergesort.

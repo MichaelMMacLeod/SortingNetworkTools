@@ -1,6 +1,6 @@
-import SortingNetworkSearch.SVGWidget
-import SortingNetworkSearch.NetworkExtras
-import SortingNetworkSearch.Network
+import SortingNetworkTools.SVGWidget
+import SortingNetworkTools.NetworkExtras
+import SortingNetworkTools.Network
 
 open Lean Widget Lean.Elab.Command Lean.Elab
 
@@ -11,7 +11,7 @@ Displays the a network in the Lean InfoView panel.
 
 Example:
 ```
-import SortingNetworkSearch.NetworkExtras
+import SortingNetworkTools.NetworkExtras
 #network (Network.Algorithm.batcherOddEven : Network 16)
 ```
 -/

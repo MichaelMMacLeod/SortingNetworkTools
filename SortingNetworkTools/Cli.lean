@@ -1,4 +1,4 @@
-import SortingNetworkSearch.Action
+import SortingNetworkTools.Action
 
 structure Error where
   unexpected : Substring

@@ -1,5 +1,5 @@
-import SortingNetworkSearch.Recursive
-import SortingNetworkSearch.Trampoline
+import SortingNetworkTools.Recursive
+import SortingNetworkTools.Trampoline
 
 inductive ListF (α : Type u) (β : Type v)
   | nil : ListF α β

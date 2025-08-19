@@ -1,6 +1,6 @@
-import SortingNetworkSearch.ExtraTheorems
-import SortingNetworkSearch.Layer
-import SortingNetworkSearch.TestPack
+import SortingNetworkTools.ExtraTheorems
+import SortingNetworkTools.Layer
+import SortingNetworkTools.TestPack
 
 /--
 A sorting network that can be efficiently tested for correctness

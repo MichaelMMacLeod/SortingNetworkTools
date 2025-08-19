@@ -1,6 +1,6 @@
-import SortingNetworkSearch.Recursive
-import SortingNetworkSearch.Trampoline
-import SortingNetworkSearch.ArrayExtras
+import SortingNetworkTools.Recursive
+import SortingNetworkTools.Trampoline
+import SortingNetworkTools.ArrayExtras
 
 inductive SubstringTree where
 | node : Array SubstringTree → SubstringTree

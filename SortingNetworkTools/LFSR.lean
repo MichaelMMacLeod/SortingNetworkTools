@@ -1,6 +1,3 @@
-import Std.Data.HashSet
-import Lean
-
 /-
 The zero-one principle states that a sorting network with n channels
 is correct if it correctly sorts all 2^n arrays of zeros and ones.

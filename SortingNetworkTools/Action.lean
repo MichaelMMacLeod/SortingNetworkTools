@@ -1,5 +1,5 @@
-import SortingNetworkSearch.NetworkExtras
-import SortingNetworkSearch.SubstringTree
+import SortingNetworkTools.NetworkExtras
+import SortingNetworkTools.SubstringTree
 
 inductive SerializationIn where
   -- | listOfLayers
