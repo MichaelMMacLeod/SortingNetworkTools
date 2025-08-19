@@ -14,7 +14,7 @@ SortingNetworkTools (SNT) is a suite of tools for handling [sorting networks](ht
 - [`snt convert` - Convert a network to a format](#snt-convert---convert-a-network-to-a-format)
 - [`snt verify` - Verify a network's correctness](#snt-verify---verify-a-networks-correctness)
 - [`snt evolve` - Create new sorting networks through repeated mutation](#snt-evolve---create-new-sorting-networks-through-repeated-mutation)
-- [Network Visualization: Lean InfoView Integration](#network-visualization-lean-infoview-integration)
+- [Lean InfoView Integration](#lean-infoview-integration)
 
 ## Download, build, and run
 
@@ -100,8 +100,8 @@ The network at each stage will be printed in the `list` format (see [snt convert
     0:2,1:3,0:1,2:3,1:2
     ```
 
-## Network Visualization: Lean InfoView Integration
-
-![left-hand side: cursor on #network nw15, right-hand side: visual representation of nw15 in the Lean InfoView](images/network_command.png)
+## Lean InfoView Integration
 
 SortingNetworkTools defines the `#network <network>` command, a [Lean Widget](https://lean-lang.org/examples/1900-1-1-widgets/) which displays the SVG representation of `<network>` in the Lean InfoView.
+
+![left-hand side: cursor on #network nw15, right-hand side: visual representation of nw15 in the Lean InfoView](images/network_command.png)
