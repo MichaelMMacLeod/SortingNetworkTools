@@ -8,10 +8,10 @@ Scala" (see https://free.cofree.io/2017/08/24/trampoline/.)
 -/
 @[specialize]
 inductive Trampoline : Type u → Type (u+1) where
-  | ret : α → Trampoline α
-  | suspend : (Unit → Trampoline α) → Trampoline α
-  | flatMap : Trampoline α → (α → Trampoline β) → Trampoline β
-  deriving Nonempty
+| ret : α → Trampoline α
+| suspend : (Unit → Trampoline α) → Trampoline α
+| flatMap : Trampoline α → (α → Trampoline β) → Trampoline β
+deriving Nonempty
 
 @[specialize]
 def Trampoline.map (f : α → β) (t : Trampoline α) : Trampoline β :=
@@ -25,10 +25,10 @@ instance : Functor Trampoline where
 
 @[specialize]
 partial def Trampoline.run [Nonempty α] : Trampoline α → α
-  | .ret a => a
-  | .suspend f => (f ()).run
-  | .flatMap x f =>
-    match x with
-    | .ret a => (f a).run
-    | .suspend r => (Trampoline.flatMap (r ()) f).run
-    | .flatMap y g => (y.flatMap (fun q => (g q).flatMap f)).run
+| .ret a => a
+| .suspend f => (f ()).run
+| .flatMap x f =>
+  match x with
+  | .ret a => (f a).run
+  | .suspend r => (Trampoline.flatMap (r ()) f).run
+  | .flatMap y g => (y.flatMap (fun q => (g q).flatMap f)).run

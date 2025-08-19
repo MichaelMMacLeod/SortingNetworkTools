@@ -1,13 +1,13 @@
 import Std.Data.HashMap
 
 inductive Mutation where
-  | swapLayers
-  | removeSmallestLayer
-  | removeRandomLayer
-  | rotateRandomLayer
-  | addRandomSwap
-  | removeRandomSwap
-  deriving BEq, Hashable, Repr
+| swapLayers
+| removeSmallestLayer
+| removeRandomLayer
+| rotateRandomLayer
+| addRandomSwap
+| removeRandomSwap
+deriving BEq, Hashable, Repr
 
 instance : Inhabited Mutation where
   default := .addRandomSwap

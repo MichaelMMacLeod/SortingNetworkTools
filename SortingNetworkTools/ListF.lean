@@ -2,12 +2,12 @@ import SortingNetworkTools.Recursive
 import SortingNetworkTools.Trampoline
 
 inductive ListF (α : Type u) (β : Type v)
-  | nil : ListF α β
-  | cons : α → β → ListF α β
+| nil : ListF α β
+| cons : α → β → ListF α β
 
 def List.project : List α → ListF α (List α)
-  | .nil => .nil
-  | .cons a b => .cons a b
+| .nil => .nil
+| .cons a b => .cons a b
 
 def ListF.map (f : β → χ) (l : ListF α β) : ListF α χ :=
   match l with

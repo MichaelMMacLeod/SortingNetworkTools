@@ -2,18 +2,12 @@ import SortingNetworkTools.NetworkExtras
 import SortingNetworkTools.SubstringTree
 
 inductive SerializationIn where
-  -- | listOfLayers
-  -- | listOfSwapLayers
-  -- | listOfSwaps
-  | list
+| list
 deriving Inhabited
 
 inductive SerializationOut where
-  -- | listOfLayers
-  -- | listOfSwapLayers
-  -- | listOfSwaps
-  | list
-  | svg
+| list
+| svg
 deriving Inhabited, Repr
 
 inductive Algorithm where
@@ -41,9 +35,9 @@ def NetworkSource.load : NetworkSource → IO (Σ size, Network size)
   | .inr sizeNetworkPair => pure sizeNetworkPair
 
 inductive Action where
-  | convert : NetworkSource → SerializationOut → Action
-  | evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → NetworkSource → Action
-  | verify : NetworkSource → Action
+| convert : NetworkSource → SerializationOut → Action
+| evolve : (seed : Option Nat) → (timeoutSeconds : Option Nat) → NetworkSource → Action
+| verify : NetworkSource → Action
 deriving Inhabited, Repr
 
 def Network.evolve (seedOption timeoutSecondsOption : Option Nat) (network : Network size) : IO Unit := do
