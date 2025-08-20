@@ -74,22 +74,11 @@ def Node.matryoshka (depth : Nat) : Node := Id.run do
 
 abbrev toStringAuxResult := Trampoline (Nat × String → Trampoline String)
 
-/--
-Converts a `Node` into a `String`.
-
-Note: this function is stack-safe; it won't cause stack overflows, even for
-deeply-nested nodes.
--/
 def Node.toString (n : Node) : String :=
   let initialIndentLevel := 0
   let result := ""
   n.cataTR toStringAux |>.run (initialIndentLevel, result) |>.run
 where
-  /--
-  This function does the actual folding. It consumes/produces the accumulating
-  `String` result linearly, which means the result is produced through in-place
-  mutation.
-  -/
   toStringAux : NodeF toStringAuxResult → toStringAuxResult :=
     fun { name, attributes, children } =>
       let children := List.sequenceTrampoline children
