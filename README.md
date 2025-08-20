@@ -61,7 +61,7 @@ The command `snt verify` can check if a network is correct or incorrect via the 
 
 > The zero-one principle states that, if a sorting network can correctly sort all 2ⁿ sequences of zeros and ones, then it is also valid for arbitrary ordered inputs. This not only drastically cuts down on the number of tests needed to ascertain the validity of a network, it is of great use in creating many constructions of sorting networks as well.
 
-We use [maximal LFSRs](https://en.wikipedia.org/wiki/Linear-feedback_shift_register) to, in constant space, exhaustively generate all (nonzero) 2ⁿ sequences in a random order (to more quickly rule out incorrect networks.) The verifier encodes sequences in a way that enables it to check 64 sequences in parallel on a single core (currently only one core is supported.)
+We use [maximal LFSRs](https://en.wikipedia.org/wiki/Linear-feedback_shift_register) to, in constant space, exhaustively generate all (nonzero) 2ⁿ sequences in a random order (to more quickly rule out incorrect networks.) The verifier encodes sequences in a way that enables it to check 64 sequences in parallel on a single core (currently only one core is supported.) This encoding technique comes from the excellent [SorterHunter project](https://github.com/bertdobbelaere/SorterHunter).
 
 ### Example
 
