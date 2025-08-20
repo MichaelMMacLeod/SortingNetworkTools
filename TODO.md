@@ -1,6 +1,10 @@
 - Use more clever mutation strategies.
 - Add benchmarking code so that improvements to verification speed & evolution speed can be quantified.
 - Add nicer looking `snt evolve` output with statistics about number of networks created, current best networks, current average network verification time, and so on.
+- Research ways to improve speed of TestPack generation (currently bottlenecked on this, not on network running.)
+
+    For large inputs we can't just precompute all the tests because it would require too much memory. Maybe something clever can be done with LFSRs to avoid the packing code?
+
 - Fix usability of optional parameters in CLI (e.g., --timeout and --seed in snt evolve)
 
     Currently, optional parameters always succeed when parsing command line arguments, since they are optional. But this means that partially specifying them gives confusing results. For example, forgetting to provide the `<seconds>` argument to `--timeout <seconds>` gives this confusing error:
