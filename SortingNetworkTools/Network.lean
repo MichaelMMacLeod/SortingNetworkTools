@@ -12,10 +12,10 @@ structure Network (size : USize) where
   layers : Array Layer
   deriving Repr, DecidableEq, Hashable
 
-def Network.instInhabited : Network size := .mk #[]
+def Network.default : Network size := .mk #[]
 
 instance : Inhabited (Network size) where
-  default := Network.instInhabited
+  default := Network.default
 
 def Network.toSwaps (n : Network size) : Array Swap :=
   n.layers.flatMap (Layer.toSwapLayer ·)
