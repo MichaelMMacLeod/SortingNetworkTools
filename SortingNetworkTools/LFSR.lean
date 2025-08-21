@@ -75,4 +75,7 @@ def mkLFSR (coefficients : Array UInt64) : UInt64 → UInt64 :=
 def LFSRArray : Array (UInt64 → UInt64) := coefficients.map (·.map (·.toUInt64)) |>.map (mkLFSR ·)
 
 def LFSR.rand (size : USize) (seed : UInt64) : UInt64 :=
-  LFSRArray[size - 2]! seed
+  if size ≥ 2 then
+    LFSRArray[size - 2]! seed
+  else
+    (seed + 1) % 2

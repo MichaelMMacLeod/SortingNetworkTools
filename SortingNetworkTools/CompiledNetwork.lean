@@ -50,22 +50,19 @@ partial def CompiledNetwork.runTestPack
 
 def CompiledNetwork.countTestFailures (c : CompiledNetwork size) : UInt64 := Id.run do
   let mut seed := 1
-  let mut src := Array.replicate 64 0
   let mut dest := Array.replicate size.toNat 0
   let mut failures := 0
   let mut isFirstIteration := true
-  if h : src.size < USize.size ∧ src.usize = 64 then
-    while seed ≠ 1 ∨ isFirstIteration do
-      isFirstIteration := false
-      if h : dest.usize = size then
-        (dest, seed) := TestPack.mkRandom size dest ⟨src, by grind⟩ seed
-        if h : dest.usize = size ∧ dest.size < USize.size then
-          dest := c.runTestPack ⟨dest, by grind⟩
-          failures := failures + TestPack.countFailures dest
-        else panic! "invariant violated: dest has wrong size"
-      else panic! "invariants violated for mkPackedTests: dest size"
-    failures
-  else panic! "invariants violated for mkPackedTests: src size"
+  while seed ≠ 1 ∨ isFirstIteration do
+    isFirstIteration := false
+    if h : dest.usize = size then
+      (dest, seed) := TestPack.mkRandom size dest seed
+      if h : dest.usize = size ∧ dest.size < USize.size then
+        dest := c.runTestPack ⟨dest, by grind⟩
+        failures := failures + TestPack.countFailures dest
+      else panic! "invariant violated: dest has wrong size"
+    else panic! "invariants violated for mkPackedTests: dest size"
+  failures
 
 partial def CompiledNetwork.sortAux
     [Min α]
